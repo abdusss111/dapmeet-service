@@ -1,10 +1,12 @@
 version: '3.9'
 
 services:
-  db:
+  db-dev:
     image: postgres:15
-    container_name: dapmeet-db
+    container_name: dapmeet-db-dev
     restart: always
+    networks:
+      - backend_network
     volumes:
       - pgdata:/var/lib/postgresql/data
     environment:
@@ -12,20 +14,25 @@ services:
       POSTGRES_PASSWORD: dappass
       POSTGRES_DB: dapmeet
     ports:
-      - "5432:5432"
+      - "55532:5432"
 
-  backend:
+  backend-dev:
     build: .
-    container_name: dapmeet-backend
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    container_name: dapmeet-backend-dev
+    command: uvicorn main:app --host 0.0.0.0 --port 8001 --reload
+    networks:
+      - backend_network
     volumes:
       - .:/app
     ports:
-      - "8000:8000"
+      - "8001:8000"
     depends_on:
-      - db
+      - db-dev
     env_file:
       - .env
+
+networks:
+  backend_network:
 
 volumes:
   pgdata: {}
