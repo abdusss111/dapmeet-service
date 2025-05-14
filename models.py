@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, ForeignKey, DateTime, Text
+from sqlalchemy import Column, String, ForeignKey, DateTime, Text, JSON
 from sqlalchemy.orm import relationship
 from uuid import uuid4
 from datetime import date
@@ -24,3 +24,6 @@ class Meeting(Base):
     user_id = Column(String, ForeignKey("users.id"))
 
     user = relationship("User", back_populates="meetings")
+    chat_history = Column(JSON, nullable=True)
+    
+

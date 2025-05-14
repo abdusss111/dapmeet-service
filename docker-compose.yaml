@@ -24,10 +24,8 @@ services:
       - "8000:8000"
     depends_on:
       - db
-    environment:
-      DATABASE_URL: postgresql://dapuser:dappass@db:5432/dapmeet
-      GOOGLE_CLIENT_ID: your-id
-      GOOGLE_CLIENT_SECRET: your-secret
+    env_file:
+      - .env
 
 volumes:
-  pgdata:
+  pgdata: {}

@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import datetime
 from pydantic import BaseModel
 from typing import Optional
 
@@ -16,7 +16,7 @@ class MeetingOut(BaseModel):
     id: str
     title: str
     transcript: Optional[str]
-    created_at: date
+    created_at: datetime
 
     class Config:
         orm_mode = True
