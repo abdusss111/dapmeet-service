@@ -13,8 +13,8 @@ class MeetingUpdateTranscript(BaseModel):
     transcript: str
 
 class MeetingOut(BaseModel):
-    id: str
-    title: str
+    id: Optional[str]
+    title: Optional[str]
     transcript: Optional[str]
     created_at: datetime
 

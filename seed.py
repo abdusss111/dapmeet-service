@@ -1,41 +1,33 @@
 from sqlalchemy.orm import Session
-from db import SessionLocal
-from models import Meeting
-from datetime import datetime
+from sqlalchemy import create_engine
+from models import User, Meeting
+from datetime import date
 import uuid
 
-# ID пользователя, для которого создаём встречу
-user_id = "100579084074270788578"
+# 🔧 Подключение к БД — настрой под себя
+DATABASE_URL = "postgresql://dapuser:dappass@db:5432/dapmeet"
+engine = create_engine(DATABASE_URL)
 
-# Пример транскрипта (можешь вставить любой другой)
-transcript_text = """
-00:00 Salta Bolatova: Сегодня мы проводим встречу по итогам месяца.
-00:10 Jaslan Aldongarov: Да, обсудим воронку продаж и обратную связь от клиентов.
-00:25 Salta Bolatova: Ещё важно затронуть планы на следующую неделю, особенно по корпоративам.
-00:45 Jaslan Aldongarov: Согласен, и обсудим возможную автоматизацию подтверждений участия.
-"""
+# ⚙️ Создание сессии
+session = Session(bind=engine)
 
-# Название встречи
-meeting_title = "Обсуждение итогов и планов"
+# 🔍 Найти пользователя
+user_id = "107269937002782393048"
+user = session.query(User).filter_by(id=user_id).first()
 
-def create_transcript():
-    db: Session = SessionLocal()
-    try:
-        meeting = Meeting(
-            id=str(uuid.uuid4()),
-            title=meeting_title,
-            transcript=transcript_text,
-            created_at=datetime.utcnow(),
-            user_id=user_id
-        )
-        db.add(meeting)
-        db.commit()
-        print(f"✅ Транскрипт добавлен (ID встречи: {meeting.id})")
-    except Exception as e:
-        db.rollback()
-        print(f"❌ Ошибка: {e}")
-    finally:
-        db.close()
+if not user:
+    print("❌ Пользователь не найден.")
+else:
+    # ✅ Создаём плейсхолдер митинг
+    meeting = Meeting(
+        id=str(uuid.uuid4()),
+        title="Placeholder Meeting",
+        transcript="Это плейсхолдерный транскрипт.",
+        created_at=date.today(),
+        user_id=user.id,
+        chat_history={"messages": []}  # или None
+    )
 
-if __name__ == "__main__":
-    create_transcript()
+    session.add(meeting)
+    session.commit()
+    print(f"✅ Митинг создан: {meeting.id}")
