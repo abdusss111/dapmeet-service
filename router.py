@@ -7,7 +7,6 @@ from schemas import MeetingCreate, MeetingOut, MeetingPatch
 from pydantic import BaseModel
 from typing import List, Literal
 from fastapi import Body
-
 router = APIRouter()  # <-- определение router стоит ПОСЛЕ использования!
 
 
@@ -26,12 +25,25 @@ def get_meetings(user: User = Depends(get_current_user), db: Session = Depends(g
     return db.query(Meeting).filter(Meeting.user_id == user.id).all()
 
 @router.post("/api/meetings/", response_model=MeetingOut)
-def create_meeting(data: MeetingCreate, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    meeting = Meeting(title=data.title, user_id=user.id)
-    db.add(meeting)
-    db.commit()
-    db.refresh(meeting)
+def create_or_update_meeting(data: MeetingCreate, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    # Check if meeting already exists by ID
+    meeting = db.query(Meeting).filter_by(id=data.id, user_id=user.id).first()
+
+    if meeting:
+        if not meeting.title and data.title:
+        	meeting.title = data.title
+        	db.commit()
+        	print("🔁 Meeting already exists:", meeting.id)
+    else:
+        # New meeting — create it
+        meeting = Meeting(id=data.id, user_id=user.id, title=data.title, transcript="")
+        db.add(meeting)
+        db.commit()
+        db.refresh(meeting)
+        print("✅ Created new meeting:", meeting.id)
+
     return meeting
+
 
 @router.get("/api/meetings/{meeting_id}", response_model=MeetingOut)
 def get_meeting(meeting_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):

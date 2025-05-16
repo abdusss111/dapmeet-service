@@ -17,7 +17,7 @@ class User(Base):
 class Meeting(Base):
     __tablename__ = "meetings"
 
-    id = Column(String, primary_key=True, default=lambda: str(uuid4()))
+    id = Column(String, primary_key=True)
     title = Column(String)
     transcript = Column(Text, nullable=True)  # Просто текст
     created_at = Column(DateTime, default=date.today)

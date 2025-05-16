@@ -19,7 +19,7 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://dapmeet.kz"],  # or ["*"] for dev
+    allow_origins=["https://dapmeet.kz", "chrome-extension://liphcklmjpciifdofjfhhoibflpocpnc", "https://meet.google.com"],  # or ["*"] for dev
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
