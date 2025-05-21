@@ -29,3 +29,6 @@ class MeetingOut(BaseModel):
 
     class Config:
         orm_mode = True
+
+class AccessTokenPayload(BaseModel):
+    access_token: str

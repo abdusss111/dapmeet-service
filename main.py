@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from dotenv import load_dotenv
-
+from transcribe import router as transcribe_router
 from deps import get_db
 from router import router as main_router
 from google_auth_service import (
@@ -26,8 +26,7 @@ app.add_middleware(
 )
 
 app.include_router(main_router)
-
-
+app.include_router(transcribe_router)
 class CodePayload(BaseModel):
     code: str
 

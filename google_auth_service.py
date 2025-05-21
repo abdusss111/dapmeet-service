@@ -13,14 +13,6 @@ GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
 GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI")
 JWT_SECRET = os.getenv("NEXTAUTH_SECRET", "secret-key")
 
-print("GOOGLE_CLIENT_ID:", GOOGLE_CLIENT_ID)
-print("GOOGLE_CLIENT_SECRET:", GOOGLE_CLIENT_SECRET)
-print("GOOGLE_REDIRECT_URI:", GOOGLE_REDIRECT_URI)
-
-print("GOOGLE_CLIENT_ID:", GOOGLE_CLIENT_ID)
-print("GOOGLE_CLIENT_SECRET:", GOOGLE_CLIENT_SECRET)
-print("GOOGLE_REDIRECT_URI:", GOOGLE_REDIRECT_URI)
-
 
 async def exchange_code_for_token(code: str) -> str:
     async with httpx.AsyncClient() as client:
@@ -57,16 +49,23 @@ async def get_google_user_info(access_token: str) -> dict:
 
 
 def find_or_create_user(user_info: dict, db: Session) -> User:
-    user = db.query(User).filter(User.id == user_info["id"]).first()
+    user_id = user_info.get("sub") or user_info.get("id")
+
+    if not user_id:
+        raise ValueError("Missing user ID from Google user_info")
+
+    user = db.query(User).filter(User.id == user_id).first()
+
     if not user:
         user = User(
-            id=user_info["id"],
+            id=user_id,
             email=user_info["email"],
             name=user_info.get("name", "")
         )
         db.add(user)
         db.commit()
         db.refresh(user)
+
     return user
 
 
