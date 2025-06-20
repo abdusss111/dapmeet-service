@@ -10,6 +10,7 @@ from dapmeet.services.google_auth_service import (
     generate_jwt
 )
 
+router = APIRouter()
 
 @router.post("/google")
 async def google_auth(payload: CodePayload, db: Session = Depends(get_db)):
