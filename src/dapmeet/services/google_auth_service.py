@@ -1,6 +1,6 @@
 import os
 from dotenv import load_dotenv  # ✅ добавить
-load_dotenv()  # ✅ вызывается ДО os.getenv
+load_dotenv(dotenv_path=os.path.join(os.getcwd(), ".env"))
 
 import httpx
 import jwt
