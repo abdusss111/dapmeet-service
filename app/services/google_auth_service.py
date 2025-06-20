@@ -13,15 +13,6 @@ GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
 GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI")
 JWT_SECRET = os.getenv("NEXTAUTH_SECRET", "secret-key")
 
-print("GOOGLE_CLIENT_ID:", GOOGLE_CLIENT_ID)
-print("GOOGLE_CLIENT_SECRET:", GOOGLE_CLIENT_SECRET)
-print("GOOGLE_REDIRECT_URI:", GOOGLE_REDIRECT_URI)
-
-print("GOOGLE_CLIENT_ID:", GOOGLE_CLIENT_ID)
-print("GOOGLE_CLIENT_SECRET:", GOOGLE_CLIENT_SECRET)
-print("GOOGLE_REDIRECT_URI:", GOOGLE_REDIRECT_URI)
-
-
 async def exchange_code_for_token(code: str) -> str:
     async with httpx.AsyncClient() as client:
         token_resp = await client.post(
