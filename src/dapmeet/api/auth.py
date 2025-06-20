@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from core.deps import get_db
-from schemas.auth import CodePayload
-from services.google_auth_service import (
+from dapmeet.core.deps import get_db
+from dapmeet.schemas.auth import CodePayload
+from dapmeet.services.google_auth_service import (
     exchange_code_for_token,
     get_google_user_info,
     find_or_create_user,

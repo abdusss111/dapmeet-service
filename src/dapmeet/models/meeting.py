@@ -2,7 +2,8 @@ from sqlalchemy import Column, String, ForeignKey, DateTime, Text, JSON
 from sqlalchemy.orm import relationship
 from uuid import uuid4
 from datetime import date
-from db.db import Base
+
+from dapmeet.db.db import Base
 
 
 class Meeting(Base):

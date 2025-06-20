@@ -1,0 +1,12 @@
+Metadata-Version: 2.4
+Name: dapmeet
+Version: 0.1.0
+Summary: FastAPI backend for DapMeet
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Requires-Dist: fastapi
+Requires-Dist: uvicorn[standard]
+Requires-Dist: sqlalchemy
+Requires-Dist: alembic
+
+# dapmeet-service

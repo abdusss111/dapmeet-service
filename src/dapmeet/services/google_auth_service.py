@@ -6,7 +6,7 @@ import httpx
 import jwt
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
-from models import User
+from dapmeet.models.user import User
 
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")

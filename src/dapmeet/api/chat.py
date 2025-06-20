@@ -1,11 +1,11 @@
 from fastapi import APIRouter, HTTPException, Depends, Body
 from sqlalchemy.orm import Session
 
-from models.user import User
-from models.meeting import Meeting
-from services.auth import get_current_user
-from core.deps import get_db
-from schemas.messages import ChatHistoryRequest
+from dapmeet.models.user import User
+from dapmeet.models.meeting import Meeting
+from dapmeet.services.auth import get_current_user
+from dapmeet.core.deps import get_db
+from dapmeet.schemas.messages import ChatHistoryRequest
 
 router = APIRouter()
 

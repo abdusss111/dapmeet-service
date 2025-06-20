@@ -2,9 +2,9 @@ from fastapi import Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 
-from google_auth_service import JWT_SECRET
-from models import User
-from deps import get_db
+from dapmeet.services.google_auth_service import JWT_SECRET
+from dapmeet.models.user import User
+from dapmeet.core.deps import get_db
 import jwt
 
 oauth2_scheme = HTTPBearer()
