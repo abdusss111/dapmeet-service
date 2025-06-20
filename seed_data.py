@@ -2,7 +2,6 @@ from sqlalchemy.orm import Session
 from db import SessionLocal
 from models import Meeting
 from datetime import datetime
-import uuid
 
 user_id = "100579084074270788578"
 
