@@ -1,6 +1,5 @@
 from sqlalchemy.orm import Session
 from db import SessionLocal
-from models import Meeting
 
 user_id = "100579084074270788578"
 
