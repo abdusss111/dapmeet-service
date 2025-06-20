@@ -1,6 +1,7 @@
 from db import SessionLocal
 from models import Meeting
 from sqlalchemy.orm import Session
+from datetime import datetime
 
 # Настройка
 meeting_id = "837c454a-9613-49e1-90ec-799b7cdb85c8"
