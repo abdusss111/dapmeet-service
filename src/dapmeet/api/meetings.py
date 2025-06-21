@@ -3,10 +3,12 @@ from sqlalchemy.orm import Session
 
 from dapmeet.models.user import User
 from dapmeet.models.meeting import Meeting
+from dapmeet.models.segment import TranscriptSegment  # ← ДОБАВИТЬ ЭТОТ ИМПОРТ
 from dapmeet.services.auth import get_current_user
 from dapmeet.core.deps import get_db
 from dapmeet.schemas.meetings import MeetingCreate, MeetingOut, MeetingPatch
 from dapmeet.schemas.segment import TranscriptSegmentCreate, TranscriptSegmentOut
+
 router = APIRouter()
 
 @router.get("/", response_model=list[MeetingOut])

@@ -5,7 +5,6 @@ from uuid import uuid4
 from datetime import datetime
 
 from dapmeet.db.db import Base
-from .segment import TranscriptSegment   # ← import it here
 
 class Meeting(Base):
     __tablename__ = "meetings"
@@ -15,12 +14,14 @@ class Meeting(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     user_id = Column(String, ForeignKey("users.id"))
 
+    # Используем строки для избежания циклического импорта
     user = relationship("User", back_populates="meetings")
     chat_history = Column(JSON, nullable=True)
 
+    # ИСПРАВЛЕНО: используем строки вместо импорта класса
     segments = relationship(
-        TranscriptSegment,                       # ← class, not string
+        "TranscriptSegment",                     # строка, не класс
         back_populates="meeting",
         cascade="all, delete-orphan",
-        order_by=TranscriptSegment.created_at   # ← real column object
+        order_by="TranscriptSegment.created_at"  # строка, не атрибут
     )

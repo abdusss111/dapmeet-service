@@ -1,7 +1,9 @@
-import importlib, pkgutil
-import dapmeet.models as models_pkg
-from dapmeet.db.db import Base
-for _, module_name, _ in pkgutil.iter_modules(models_pkg.__path__):
-    importlib.import_module(f"dapmeet.models.{module_name}")
+# src/dapmeet/models/__init__.py
 
-target_metadata = Base.metadata
+# ОБЯЗАТЕЛЬНО импортировать ВСЕ модели для регистрации в SQLAlchemy MetaData
+from .user import User
+from .meeting import Meeting  
+from .segment import TranscriptSegment
+
+# Делаем их доступными при импорте пакета
+__all__ = ["User", "Meeting", "TranscriptSegment"]
