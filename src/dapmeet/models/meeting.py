@@ -14,13 +14,14 @@ class Meeting(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     user_id = Column(String, ForeignKey("users.id"))
 
+    # Используем строки для избежания циклического импорта
     user = relationship("User", back_populates="meetings")
     chat_history = Column(JSON, nullable=True)
 
-    # Используем строку для избежания циклического импорта
+    # ИСПРАВЛЕНО: используем строки вместо импорта класса
     segments = relationship(
-        "TranscriptSegment",                     # ← строка, не класс
+        "TranscriptSegment",                     # строка, не класс
         back_populates="meeting",
         cascade="all, delete-orphan",
-        order_by="TranscriptSegment.created_at"  # ← строка, не объект
+        order_by="TranscriptSegment.created_at"  # строка, не атрибут
     )
