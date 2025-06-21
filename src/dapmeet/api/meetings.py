@@ -30,7 +30,7 @@ def get_meeting(meeting_id: str, user: User = Depends(get_current_user), db: Ses
 
 @router.post("/{meeting_id}/segments", 
     response_model=TranscriptSegmentOut, 
-    status_code=status.HTTP_201_CREATED,)
+    status_code=201,)
 def add_segment(
     meeting_id: str,
     seg_in: TranscriptSegmentCreate,
