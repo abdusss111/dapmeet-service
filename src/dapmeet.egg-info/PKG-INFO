@@ -9,4 +9,3 @@ Requires-Dist: uvicorn[standard]
 Requires-Dist: sqlalchemy
 Requires-Dist: alembic
 
-# dapmeet-service

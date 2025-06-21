@@ -6,7 +6,7 @@ from dapmeet.models.meeting import Meeting
 from dapmeet.services.auth import get_current_user
 from dapmeet.core.deps import get_db
 from dapmeet.schemas.meetings import MeetingCreate, MeetingOut, MeetingPatch
-
+from dapmeet.schemas.segment import TranscriptSegmentCreate, TranscriptSegmentOut
 router = APIRouter()
 
 @router.get("/", response_model=list[MeetingOut])
@@ -28,17 +28,25 @@ def get_meeting(meeting_id: str, user: User = Depends(get_current_user), db: Ses
         raise HTTPException(status_code=404, detail="Meeting not found")
     return meeting
 
-@router.patch("/{meeting_id}", response_model=MeetingOut)
-def patch_meeting(meeting_id: str, data: MeetingPatch, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    meeting = db.query(Meeting).filter(Meeting.id == meeting_id, Meeting.user_id == user.id).first()
+@router.post("/{meeting_id}/segments", 
+    response_model=TranscriptSegmentOut, 
+    status_code=status.HTTP_201_CREATED,)
+def add_segment(
+    meeting_id: str,
+    seg_in: TranscriptSegmentCreate,
+    user = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    meeting = (
+        db.query(Meeting)
+        .filter(Meeting.id == meeting_id, Meeting.user_id == user.id)
+        .first()
+    )
     if not meeting:
         raise HTTPException(status_code=404, detail="Meeting not found")
 
-    if data.title is not None:
-        meeting.title = data.title
-    if data.transcript is not None:
-        meeting.transcript = data.transcript
-
+    segment = TranscriptSegment(meeting_id=meeting_id, text=seg_in.text)
+    db.add(segment)
     db.commit()
-    db.refresh(meeting)
-    return meeting
+    db.refresh(segment)
+    return segment

@@ -1,6 +1,7 @@
 from datetime import datetime
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
+from .segment import TranscriptSegmentOut
 
 class MeetingPatch(BaseModel):
     title: Optional[str] = None
@@ -15,7 +16,7 @@ class MeetingUpdateTranscript(BaseModel):
 class MeetingOut(BaseModel):
     id: str
     title: str
-    transcript: Optional[str]
+    segments: List[TranscriptSegmentOut]
     created_at: datetime
 
     class Config:
