@@ -9,6 +9,7 @@ from fastapi import HTTPException
 from dapmeet.models.user import User
 
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
+GOOGLE_CLIENT_ID_EXTENSION = os.getenv("GOOGLE_CLIENT_ID_EXTENSION")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
 GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI")
 JWT_SECRET = os.getenv("NEXTAUTH_SECRET", "secret-key")
@@ -76,6 +77,39 @@ async def validate_google_access_token(access_token: str) -> dict:
     
     return token_info
 
+async def validate_chrome_access_token(access_token: str) -> dict:
+    """
+    Валидирует access token для Chrome Identity API
+    Проверяет audience и expiration
+    """
+    async with httpx.AsyncClient() as client:
+        token_info_resp = await client.get(
+            f"https://www.googleapis.com/oauth2/v1/tokeninfo?access_token={access_token}"
+        )
+    
+    if token_info_resp.status_code != 200:
+        raise HTTPException(
+            status_code=401, 
+            detail=f"Token validation failed: {token_info_resp.text}"
+        )
+    
+    token_info = token_info_resp.json()
+    
+    # Критически важно: проверяем что токен выдан для нашего приложения
+    if token_info.get("audience") != GOOGLE_CLIENT_ID_EXTENSION:
+        raise HTTPException(
+            status_code=401, 
+            detail="Token audience mismatch - token not issued for this application"
+        )
+    
+    # Проверяем что токен не истек
+    if token_info.get("expires_in", 0) <= 0:
+        raise HTTPException(
+            status_code=401, 
+            detail="Token has expired"
+        )
+    
+    return token_info
 
 async def get_google_user_info(access_token: str) -> dict:
     """
