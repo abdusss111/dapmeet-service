@@ -113,3 +113,30 @@ def generate_jwt(user_info: dict) -> str:
         "name": user_info.get("name", ""),
     }
     return jwt.encode(payload, JWT_SECRET, algorithm="HS256")
+
+    async def exchange_code_for_token(code: str) -> str:
+    """
+    Обменивает authorization code на access token
+    Используется для стандартного OAuth flow на фронте
+    """
+    async with httpx.AsyncClient() as client:
+        token_resp = await client.post(
+            "https://oauth2.googleapis.com/token",
+            data={
+                "code": code,
+                "client_id": GOOGLE_CLIENT_ID,
+                "client_secret": GOOGLE_CLIENT_SECRET,
+                "redirect_uri": GOOGLE_REDIRECT_URI,
+                "grant_type": "authorization_code"
+            },
+            headers={"Content-Type": "application/x-www-form-urlencoded"}
+        )
+
+    if token_resp.status_code != 200:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Token exchange failed: {token_resp.text}"
+        )
+
+    token_data = token_resp.json()
+    return token_data["access_token"]
