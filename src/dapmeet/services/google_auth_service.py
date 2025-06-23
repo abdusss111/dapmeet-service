@@ -61,7 +61,8 @@ async def validate_google_access_token(access_token: str) -> dict:
     
     token_info = token_info_resp.json()
     
-    # Критически важно: проверяем что токен выдан для нашего приложения
+        # Критически важно: проверяем что токен выдан для нашего приложения
+    print(access_token)
     if token_info.get("audience") != GOOGLE_CLIENT_ID:
         raise HTTPException(
             status_code=401, 
