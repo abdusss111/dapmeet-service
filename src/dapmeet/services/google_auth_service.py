@@ -135,13 +135,16 @@ async def get_google_user_info(access_token: str) -> dict:
     return user_resp.json()
 
 
-async def validate_and_get_user_info(access_token: str) -> dict:
+async def validate_and_get_user_info(access_token: str, source) -> dict:
     """
     Комбинированная функция: валидация токена + получение user info
     Для Chrome Identity API использования
     """
     # Валидируем токен
-    token_info = await validate_google_access_token(access_token)
+    if source == "chrome":
+        token_info = await validate_chrome_access_token(access_token)
+    else:
+        token_info = await validate_google_access_token(access_token)
     
     # Получаем user info
     user_info = await get_google_user_info(access_token)
@@ -199,7 +202,7 @@ async def authenticate_with_google_token(access_token: str, db: Session) -> tupl
     """
     try:
         # Получаем и валидируем user info
-        user_info = await validate_and_get_user_info(access_token)
+        user_info = await validate_and_get_user_info(access_token, source="chrome")
         
         # Создаем/находим пользователя
         user = find_or_create_user(user_info, db)
