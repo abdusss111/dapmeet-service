@@ -94,7 +94,8 @@ async def validate_chrome_access_token(access_token: str) -> dict:
         )
     
     token_info = token_info_resp.json()
-    
+    print("clien id:",GOOGLE_CLIENT_ID_EXTENSION)
+    print("token info:", token_info.get("audience"))
     # Критически важно: проверяем что токен выдан для нашего приложения
     if token_info.get("audience") != GOOGLE_CLIENT_ID_EXTENSION:
         raise HTTPException(
