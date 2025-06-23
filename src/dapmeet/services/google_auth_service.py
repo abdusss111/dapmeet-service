@@ -15,43 +15,78 @@ GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI")
 JWT_SECRET = os.getenv("NEXTAUTH_SECRET", "secret-key")
 
 
-async def validate_chrome_access_token(access_token: str) -> dict:
+async def exchange_code_for_token(code: str) -> str:
     """
-    Валидирует access token для Chrome Identity API
-    Проверяет audience и expiration
+    Обменивает authorization code на access token
+    Используется для стандартного OAuth flow на фронте
+    """
+    async with httpx.AsyncClient() as client:
+        token_resp = await client.post(
+            "https://oauth2.googleapis.com/token",
+            data={
+                "code": code,
+                "client_id": GOOGLE_CLIENT_ID,
+                "client_secret": GOOGLE_CLIENT_SECRET,
+                "redirect_uri": GOOGLE_REDIRECT_URI,
+                "grant_type": "authorization_code"
+            },
+            headers={"Content-Type": "application/x-www-form-urlencoded"}
+        )
+
+    if token_resp.status_code != 200:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Token exchange failed: {token_resp.text}"
+        )
+
+    token_data = token_resp.json()
+    return token_data["access_token"]
+
+
+async def validate_google_access_token(access_token: str) -> dict:
+    """
+    Валидирует Google access token и возвращает информацию о токене
+    Проверяет audience для защиты от token substitution атак
     """
     async with httpx.AsyncClient() as client:
         token_info_resp = await client.get(
             f"https://www.googleapis.com/oauth2/v1/tokeninfo?access_token={access_token}"
         )
-
+    
     if token_info_resp.status_code != 200:
         raise HTTPException(
-            status_code=401,
+            status_code=401, 
             detail=f"Token validation failed: {token_info_resp.text}"
         )
-
+    
     token_info = token_info_resp.json()
-
-    if token_info.get("audience") != GOOGLE_CLIENT_ID_EXTENSION:
+    
+    # Критически важно: проверяем что токен выдан для нашего приложения
+    if token_info.get("audience") != GOOGLE_CLIENT_ID:
         raise HTTPException(
-            status_code=401,
+            status_code=401, 
             detail="Token audience mismatch - token not issued for this application"
         )
-
+    
+    # Проверяем что токен не истек
     if token_info.get("expires_in", 0) <= 0:
         raise HTTPException(
-            status_code=401,
+            status_code=401, 
             detail="Token has expired"
         )
-
+    
     return token_info
 
 
 async def get_google_user_info(access_token: str) -> dict:
     """
     Получает информацию о пользователе из Google API
+    Сначала валидирует токен для безопасности
     """
+    # Сначала валидируем токен
+    await validate_google_access_token(access_token)
+    
+    # Теперь безопасно получаем user info
     async with httpx.AsyncClient() as client:
         user_resp = await client.get(
             "https://www.googleapis.com/oauth2/v2/userinfo",
@@ -60,39 +95,42 @@ async def get_google_user_info(access_token: str) -> dict:
 
     if user_resp.status_code != 200:
         raise HTTPException(
-            status_code=400,
+            status_code=400, 
             detail=f"User info fetch failed: {user_resp.text}"
         )
 
     return user_resp.json()
 
 
-async def authenticate_with_google_token(access_token: str, db: Session) -> tuple[User, str]:
+async def validate_and_get_user_info(access_token: str, source) -> dict:
     """
-    1️⃣ Валидирует Google токен для расширения
-    2️⃣ Получает user info
-    3️⃣ Создает/находит пользователя в БД
-    4️⃣ Генерирует кастомный JWT
+    Комбинированная функция: валидация токена + получение user info
+    Для Chrome Identity API использования
     """
-    try:
+    # Валидируем токен
+    if source == "chrome":
         token_info = await validate_chrome_access_token(access_token)
-        user_info = await get_google_user_info(access_token)
-
-        user = find_or_create_user(user_info, db)
-        jwt_token = generate_jwt(user_info)
-
-        return user, jwt_token
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Authentication failed: {str(e)}"
-        )
+    else:
+        token_info = await validate_google_access_token(access_token)
+    
+    # Получаем user info
+    user_info = await get_google_user_info(access_token, source=source)
+    
+    # Возвращаем объединенную информацию
+    return {
+        **user_info,
+        "token_info": {
+            "audience": token_info.get("audience"),
+            "scope": token_info.get("scope"),
+            "expires_in": token_info.get("expires_in")
+        }
+    }
 
 
 def find_or_create_user(user_info: dict, db: Session) -> User:
+    """
+    Находит существующего пользователя или создает нового
+    """
     user = db.query(User).filter(User.id == user_info["id"]).first()
     if not user:
         user = User(
@@ -107,36 +145,46 @@ def find_or_create_user(user_info: dict, db: Session) -> User:
 
 
 def generate_jwt(user_info: dict) -> str:
+    """
+    Генерирует кастомный JWT для использования в API
+    """
     payload = {
         "sub": user_info["id"],
         "email": user_info["email"],
         "name": user_info.get("name", ""),
     }
+    
     return jwt.encode(payload, JWT_SECRET, algorithm="HS256")
 
-    async def exchange_code_for_token(code: str) -> str:
-        """
-        Обменивает authorization code на access token
-        Используется для стандартного OAuth flow на фронте
-        """
-        async with httpx.AsyncClient() as client:
-            token_resp = await client.post(
-                "https://oauth2.googleapis.com/token",
-                data={
-                    "code": code,
-                    "client_id": GOOGLE_CLIENT_ID,
-                    "client_secret": GOOGLE_CLIENT_SECRET,
-                    "redirect_uri": GOOGLE_REDIRECT_URI,
-                    "grant_type": "authorization_code"
-                },
-                headers={"Content-Type": "application/x-www-form-urlencoded"}
-            )
 
-        if token_resp.status_code != 200:
-            raise HTTPException(
-                status_code=400, 
-                detail=f"Token exchange failed: {token_resp.text}"
-            )
-
-        token_data = token_resp.json()
-        return token_data["access_token"]
+async def authenticate_with_google_token(access_token: str, db: Session) -> tuple[User, str]:
+    """
+    Полный flow аутентификации для Chrome Identity:
+    1. Валидирует Google токен
+    2. Получает user info  
+    3. Создает/находит пользователя в БД
+    4. Генерирует кастомный JWT
+    
+    Returns: (User object, JWT token)
+    """
+    try:
+        # Получаем и валидируем user info
+        user_info = await validate_and_get_user_info(access_token, source="chrome")
+        
+        # Создаем/находим пользователя
+        user = find_or_create_user(user_info, db)
+        
+        # Генерируем наш JWT
+        jwt_token = generate_jwt(user_info)
+        
+        return user, jwt_token
+        
+    except HTTPException:
+        # Пробрасываем HTTP ошибки как есть
+        raise
+    except Exception as e:
+        # Ловим любые другие ошибки
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Authentication failed: {str(e)}"
+        )
