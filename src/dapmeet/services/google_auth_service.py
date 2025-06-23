@@ -9,6 +9,7 @@ from fastapi import HTTPException
 from dapmeet.models.user import User
 
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
+GOOGLE_CLIENT_ID_EXTENSION = os.getenv("GOOGLE_CLIENT_ID_EXTENSION")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
 GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI")
 JWT_SECRET = os.getenv("NEXTAUTH_SECRET", "secret-key")
@@ -61,7 +62,7 @@ async def validate_google_access_token(access_token: str) -> dict:
     token_info = token_info_resp.json()
     
     # Критически важно: проверяем что токен выдан для нашего приложения
-    if token_info.get("audience") != GOOGLE_CLIENT_ID:
+    if token_info.get("audience") != GOOGLE_CLIENT_ID_EXTENSION:
         raise HTTPException(
             status_code=401, 
             detail="Token audience mismatch - token not issued for this application"
