@@ -148,9 +148,6 @@ def generate_jwt(user_info: dict) -> str:
         "sub": user_info["id"],
         "email": user_info["email"],
         "name": user_info.get("name", ""),
-        # Можно добавить дополнительные claims
-        "iss": "dapmeet.kz",  # issuer
-        "aud": "dapmeet-api",  # audience для нашего API
     }
     
     return jwt.encode(payload, JWT_SECRET, algorithm="HS256")
