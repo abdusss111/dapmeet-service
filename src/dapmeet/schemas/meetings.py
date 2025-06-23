@@ -21,3 +21,11 @@ class MeetingOut(BaseModel):
 
     class Config:
         orm_mode = True
+
+class MeetingOutList(BaseModel):
+    id: str
+    title: str
+    created_at: datetime
+
+    class Config:
+        orm_mode = True

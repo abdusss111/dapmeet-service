@@ -6,12 +6,12 @@ from dapmeet.models.meeting import Meeting
 from dapmeet.models.segment import TranscriptSegment  # ← ДОБАВИТЬ ЭТОТ ИМПОРТ
 from dapmeet.services.auth import get_current_user
 from dapmeet.core.deps import get_db
-from dapmeet.schemas.meetings import MeetingCreate, MeetingOut, MeetingPatch
+from dapmeet.schemas.meetings import MeetingCreate, MeetingOut, MeetingPatch, MeetingOutList
 from dapmeet.schemas.segment import TranscriptSegmentCreate, TranscriptSegmentOut
 
 router = APIRouter()
 
-@router.get("/", response_model=list[MeetingOut])
+@router.get("/", response_model=list[MeetingOutList])
 def get_meetings(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     return db.query(Meeting).filter(Meeting.user_id == user.id).all()
 
