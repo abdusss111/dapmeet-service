@@ -100,6 +100,8 @@ async def validate_chrome_access_token(access_token: str) -> dict:
 
     # Критически важно: проверяем что токен выдан для нашего приложения
     if token_info.get("audience") != GOOGLE_CLIENT_ID_EXTENSION:
+        print("‼️ RAISE AUDIENCE MISMATCH!")
+
         raise HTTPException(
             status_code=401, 
             detail="Token audience mismatch - token not issued for this application"
