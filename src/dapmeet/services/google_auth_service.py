@@ -62,13 +62,16 @@ async def validate_google_access_token(access_token: str) -> dict:
     token_info = token_info_resp.json()
     
         # Критически важно: проверяем что токен выдан для нашего приложения
-    print(access_token)
     if token_info.get("audience") != GOOGLE_CLIENT_ID:
         raise HTTPException(
             status_code=401, 
             detail="Token audience mismatch - token not issued for this application"
         )
-    
+    elif access_token.startswith("ya29.") and token_info.get("audience") != GOOGLE_CLIENT_ID_EXTENSION:
+        raise HTTPException(
+            status_code=401, 
+            detail="Token audience mismatch - token not issued for this Chrome extension"
+        )
     # Проверяем что токен не истек
     if token_info.get("expires_in", 0) <= 0:
         raise HTTPException(
