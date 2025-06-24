@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
+from sqlalchemy import desc
 
 from dapmeet.models.user import User
 from dapmeet.models.meeting import Meeting
