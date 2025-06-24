@@ -22,3 +22,5 @@ alembic/versions/*.pyc
 
 # pytest
 .pytest_cache/
+
+alembic.ini
