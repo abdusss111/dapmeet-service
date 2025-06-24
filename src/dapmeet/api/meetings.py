@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from dapmeet.models.user import User
 from dapmeet.models.meeting import Meeting
-from dapmeet.models.segment import TranscriptSegment  # ← ДОБАВИТЬ ЭТОТ ИМПОРТ
+from dapmeet.models.segment import TranscriptSegment
 from dapmeet.services.auth import get_current_user
 from dapmeet.core.deps import get_db
 from dapmeet.schemas.meetings import MeetingCreate, MeetingOut, MeetingPatch, MeetingOutList
@@ -17,7 +17,7 @@ def get_meetings(user: User = Depends(get_current_user), db: Session = Depends(g
 
 @router.post("/", response_model=MeetingOut)
 def create_meeting(data: MeetingCreate, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    id = data.title.replace("Meet – ", "").lower()
+    id = data.title.replace("Meet – ", "")
     meeting = Meeting(id=id, title=data.title, user_id=user.id)
     db.add(meeting)
     db.commit()
