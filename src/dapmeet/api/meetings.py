@@ -13,7 +13,7 @@ router = APIRouter()
 
 @router.get("/", response_model=list[MeetingOutList])
 def get_meetings(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    return db.query(Meeting).filter(Meeting.user_id == user.id).all()
+    return db.query(Meeting).filter(Meeting.user_id == user.id).order_by(Meeting.created_at.desc()).all()
 
 @router.post("/", response_model=MeetingOut)
 def create_meeting(data: MeetingCreate, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
