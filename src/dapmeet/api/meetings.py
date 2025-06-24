@@ -17,7 +17,8 @@ def get_meetings(user: User = Depends(get_current_user), db: Session = Depends(g
 
 @router.post("/", response_model=MeetingOut)
 def create_meeting(data: MeetingCreate, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    meeting = Meeting(id=data.title, title=data.title, user_id=user.id)
+    id = data.title.replace("Meet – ", "").lower()
+    meeting = Meeting(id=id, title=data.title, user_id=user.id)
     db.add(meeting)
     db.commit()
     db.refresh(meeting)
