@@ -41,6 +41,7 @@ def add_segment(
     user = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    # Проверяем, что встреча существует и принадлежит текущему пользователю
     meeting = (
         db.query(Meeting)
         .filter(Meeting.id == meeting_id, Meeting.user_id == user.id)
@@ -49,7 +50,17 @@ def add_segment(
     if not meeting:
         raise HTTPException(status_code=404, detail="Meeting not found")
 
-    segment = TranscriptSegment(meeting_id=meeting_id, text=seg_in.text)
+    # Создаем новый сегмент с переданными данными
+    segment = TranscriptSegment(
+        meeting_id=meeting_id,
+        google_meet_user_id=seg_in.google_meet_user_id,
+        username=seg_in.username,
+        timestamp=seg_in.timestamp,
+        text=seg_in.text,
+        ver=seg_in.ver,
+        mess_id=seg_in.mess_id
+    )
+    
     db.add(segment)
     db.commit()
     db.refresh(segment)
