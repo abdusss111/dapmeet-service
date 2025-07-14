@@ -24,3 +24,5 @@ alembic/versions/*.pyc
 .pytest_cache/
 
 alembic.ini
+
+.idea
