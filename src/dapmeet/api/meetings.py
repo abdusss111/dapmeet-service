@@ -38,6 +38,7 @@ def create_or_get_meeting(
         url_meet_id=data.title,
         title=data.title
     )
+    print(meeting)
     db.add(meeting)
     db.commit()
     db.refresh(meeting)
