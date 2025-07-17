@@ -16,14 +16,32 @@ router = APIRouter()
 def get_meetings(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     return db.query(Meeting).filter(Meeting.user_id == user.id).order_by(Meeting.created_at.desc()).all()
 
-@router.post("/", response_model=MeetingOut)
-def create_meeting(data: MeetingCreate, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    id = data.title.replace("Meet – ", "")
-    meeting = Meeting(id=id, title=data.title, user_id=user.id)
+@router.post("/meetings", response_model=MeetingResponse)
+def create_or_get_meeting(
+    data: MeetingCreate, 
+    db: Session = Depends(get_db), 
+    user: User = Depends(get_current_user)
+):
+    # 1) Ищем существующую встречу у текущего пользователя
+    meeting = (
+        db.query(Meeting)
+        .filter_by(user_id=user.id, url_meet_id=data.url_meet_id)
+        .first()
+    )
+    if meeting:
+        return meeting
+
+    # 2) Если не нашли — создаём новую
+    meeting = Meeting(
+        user_id=user.id,
+        url_meet_id=data.title,
+        title=data.title
+    )
     db.add(meeting)
     db.commit()
     db.refresh(meeting)
     return meeting
+
 
 @router.get("/{meeting_id}", response_model=MeetingOut)
 def get_meeting(meeting_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):

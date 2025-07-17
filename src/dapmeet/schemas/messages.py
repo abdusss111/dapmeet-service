@@ -1,10 +1,15 @@
 from pydantic import BaseModel
-from typing import List, Literal
-class Message(BaseModel):
-    id: str
-    role: Literal["user", "assistant"]
+from datetime import datetime
+from typing import List
+
+class ChatMessageCreate(BaseModel):
+    sender: str
     content: str
+    created_at: datetime
+
+class ChatMessageResponse(ChatMessageCreate):
+    id: int
 
 class ChatHistoryRequest(BaseModel):
     meeting_id: str
-    history: List[Message]
+    history: List[ChatMessageCreate]
