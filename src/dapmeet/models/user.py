@@ -12,7 +12,7 @@ class User(Base):
     name = Column(String(100), nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
-    meet ings = relationship(
+    meetings = relationship(
         "Meeting", back_populates="user",
         cascade="all, delete-orphan"
     )
