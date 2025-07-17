@@ -1,7 +1,7 @@
+# models/user.py
 from sqlalchemy import Column, String, DateTime
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-
 from dapmeet.db.db import Base
 
 class User(Base):
@@ -12,15 +12,7 @@ class User(Base):
     name = Column(String(100), nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
-    # Встречи, которые этот пользователь создаёт
-    meetings_created = relationship(
-        "Meeting",
-        back_populates="owner",
+    meetings = relationship(
+        "Meeting", back_populates="user",
         cascade="all, delete-orphan"
-    )
-    # Встречи, в которых участвует
-    meetings_participated = relationship(
-        "Meeting",
-        secondary="meeting_participants",
-        back_populates="participants"
     )

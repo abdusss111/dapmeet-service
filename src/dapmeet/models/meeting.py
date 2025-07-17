@@ -1,76 +1,48 @@
+# models/meeting.py
 from sqlalchemy import (
-    Column, String, DateTime, Table, ForeignKey
+    Column, String, DateTime, ForeignKey, UniqueConstraint, text
 )
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from uuid import uuid4
-
 from dapmeet.db.db import Base
-
-# Промежуточная таблица для участников встречи
-meeting_participants = Table(
-    "meeting_participants",
-    Base.metadata,
-    Column(
-        "meeting_id",
-        String,
-        ForeignKey("meetings.id", ondelete="CASCADE"),
-        primary_key=True
-    ),
-    Column(
-        "user_id",
-        String,
-        ForeignKey("users.id", ondelete="CASCADE"),
-        primary_key=True
-    ),
-    Column(
-        "joined_at",
-        DateTime(timezone=True),
-        nullable=False,
-        server_default=func.now()
-    ),
-    Column(
-        "left_at",
-        DateTime(timezone=True),
-        nullable=True
-    ),
-)
 
 class Meeting(Base):
     __tablename__ = "meetings"
 
-    id = Column(String, primary_key=True, index=True, default=lambda: str(uuid4()))
-    title = Column(String(255), nullable=False)
-    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
-
-    # Владелец (создатель) встречи
-    owner_id = Column(
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("gen_random_uuid()")
+    )
+    user_id = Column(
         String,
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
         index=True
     )
-    owner = relationship("User", back_populates="meetings_created")
-
-    # Участники встречи
-    participants = relationship(
-        "User",
-        secondary=meeting_participants,
-        back_populates="meetings_participated"
+    url_meet_id = Column(
+        String(100),
+        nullable=False
+    )
+    title = Column(String(255), nullable=True)
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now()
     )
 
-    # Чат-история
+    __table_args__ = (
+        # У одного пользователя не может быть двух встреч с одинаковым url_meet_id
+        UniqueConstraint("user_id", "url_meet_id", name="uq_user_url_meet"),
+    )
+
+    user = relationship("User", back_populates="meetings")
     chat_history = relationship(
-        "ChatMessage",
-        back_populates="meeting",
-        cascade="all, delete-orphan",
-        order_by="ChatMessage.created_at"
+        "ChatMessage", back_populates="meeting",
+        cascade="all, delete-orphan", order_by="ChatMessage.created_at"
     )
-
-    # Сегменты транскрипта
     segments = relationship(
-        "TranscriptSegment",
-        back_populates="meeting",
-        cascade="all, delete-orphan",
-        order_by="TranscriptSegment.created_at"
+        "TranscriptSegment", back_populates="meeting",
+        cascade="all, delete-orphan", order_by="TranscriptSegment.created_at"
     )
