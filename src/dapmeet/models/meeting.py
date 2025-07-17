@@ -9,7 +9,7 @@ from dapmeet.db.db import Base
 class Meeting(Base):
     __tablename__ = "meetings"
 
-    id = Column(String, primary_key=True, default=lambda: str(uuid4()))
+    id = Column(String, default=lambda: str(uuid4()))
     title = Column(String)
     created_at = Column(DateTime, default=datetime.utcnow)
     user_id = Column(String, ForeignKey("users.id"))
