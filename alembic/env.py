@@ -24,6 +24,7 @@ from dapmeet.db.db import Base
 from dapmeet.models import user      # noqa: F401
 from dapmeet.models import meeting   # noqa: F401  
 from dapmeet.models import segment   # noqa: F401
+from dapmeet.models import chat_message   # noqa: F401
 
 # this is the MetaData object that Alembic uses for autogenerate
 target_metadata = Base.metadata
