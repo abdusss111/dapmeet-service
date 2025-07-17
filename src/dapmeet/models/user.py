@@ -16,3 +16,5 @@ class User(Base):
         "Meeting", back_populates="user",
         cascade="all, delete-orphan"
     )
+
+    
