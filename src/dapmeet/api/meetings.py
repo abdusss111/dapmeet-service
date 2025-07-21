@@ -31,7 +31,6 @@ def create_or_get_meeting(
 
     # 2) Если не нашли — создаём новую
     meeting = Meeting(
-        id=str(uuid.uuid4()),  # Генерируем уникальный ID
         user_id=user.id,
         url_meet_id=data.title,
         title=data.title
