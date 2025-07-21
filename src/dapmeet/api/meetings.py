@@ -74,8 +74,8 @@ def add_segment(
         speaker_username=seg_in.username,
         timestamp=seg_in.timestamp,
         text=seg_in.text,
-        ver=seg_in.ver,
-        mess_id=seg_in.mess_id
+        version=seg_in.ver,
+        message_id=seg_in.mess_id
     )
     
     db.add(segment)
