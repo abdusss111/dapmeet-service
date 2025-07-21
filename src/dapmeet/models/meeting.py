@@ -23,15 +23,10 @@ class Meeting(Base):
     title       = Column(String(255), nullable=True)
     created_at  = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
-    __table_args__ = (
-        UniqueConstraint("user_id", name="uq_user_url_meet"),
-    )
-
     user        = relationship("User", back_populates="meetings")
     participants = relationship(
         "User",
         secondary=meeting_participants,
-        # чисто односторонне: список участников у сессии
         viewonly=True
     )
     chat_history = relationship(
