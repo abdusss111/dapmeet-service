@@ -31,7 +31,7 @@ def create_or_get_meeting(
 
     # 2) Если не нашли — создаём новую
     meeting = Meeting(
-        id=data.titlw,
+        id=data.title,
         user_id=user.id,
         title=data.title
     )
