@@ -23,7 +23,7 @@ def create_or_get_meeting(
     # 1) Ищем существующую встречу у текущего пользователя
     meeting = (
         db.query(Meeting)
-        .filter_by(user_id=user.id, url_meet_id=data.title)
+        .filter_by(user_id=user.id, id=data.id)
         .first()
     )
     if meeting:
@@ -31,8 +31,8 @@ def create_or_get_meeting(
 
     # 2) Если не нашли — создаём новую
     meeting = Meeting(
+        id=data.id,
         user_id=user.id,
-        url_meet_id=data.title,
         title=data.title
     )
     print(meeting)
