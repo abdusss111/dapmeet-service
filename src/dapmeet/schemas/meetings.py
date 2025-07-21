@@ -8,6 +8,7 @@ class MeetingPatch(BaseModel):
     transcript: Optional[str] = None
 
 class MeetingCreate(BaseModel):
+    id: str
     title: str
 
 class MeetingUpdateTranscript(BaseModel):
