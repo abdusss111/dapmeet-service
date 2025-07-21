@@ -71,7 +71,7 @@ def add_segment(
     segment = TranscriptSegment(
         meeting_id=meeting_id,
         google_meet_user_id=seg_in.google_meet_user_id,
-        username=seg_in.username,
+        speaker_username=seg_in.username,
         timestamp=seg_in.timestamp,
         text=seg_in.text,
         ver=seg_in.ver,
