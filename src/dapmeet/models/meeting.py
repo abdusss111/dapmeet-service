@@ -18,15 +18,13 @@ meeting_participants = Table(
 class Meeting(Base):
     __tablename__ = "meetings"
 
-    id          = Column(String, primary_key=True, index=True)  # суррогатный ключ (uuid4())
+    id          = Column(String, primary_key=True, index=True)
     user_id     = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    url_meet_id = Column(String(100), nullable=False)  # Google Meet ID
     title       = Column(String(255), nullable=True)
     created_at  = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
     __table_args__ = (
-        # У одного пользователя не может быть двух сессий с одинаковым url_meet_id
-        UniqueConstraint("user_id", "url_meet_id", name="uq_user_url_meet"),
+        UniqueConstraint("user_id", name="uq_user_url_meet"),
     )
 
     user        = relationship("User", back_populates="meetings")
