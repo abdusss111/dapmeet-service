@@ -11,6 +11,10 @@ class MeetingCreate(BaseModel):
     # id: str
     title: str
 
+class MeetingCreateV2(BaseModel):
+    id: str
+    title: str
+
 class MeetingUpdateTranscript(BaseModel):
     transcript: str
 
