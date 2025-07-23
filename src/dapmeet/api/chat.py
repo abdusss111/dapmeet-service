@@ -29,7 +29,7 @@ def get_chat_history(
     # Проверяем, что пользователь — владелец встречи
     meeting = (
         db.query(Meeting)
-        .filter(Meeting.id == meeting_id, Meeting.owner_id == user.id)
+        .filter(Meeting.id == meeting_id, Meeting.user_id == user.id)
         .first()
     )
     if not meeting:
@@ -57,7 +57,7 @@ def save_chat_history(
     # Проверяем права доступа
     meeting = (
         db.query(Meeting)
-        .filter(Meeting.id == data.meeting_id, Meeting.owner_id == user.id)
+        .filter(Meeting.id == data.meeting_id, Meeting.user_id == user.id)
         .first()
     )
     if not meeting:
