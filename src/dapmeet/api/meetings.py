@@ -21,41 +21,22 @@ def create_or_get_meeting(
     db: Session = Depends(get_db), 
     user: User = Depends(get_current_user)
 ):
-    # 1) Ищем существующую встречу у текущего пользователя
-    meeting = (
-        db.query(Meeting)
-        .filter_by(user_id=user.id, id=data.id)
-        .first()
-    )
-    if meeting:
-        return meeting
-
-    # 2) Если не нашли — создаём новую
-    meeting = Meeting(
-        id=data.id,
-        user_id=user.id,
-        title=data.title
-    )
-    print(meeting)
-    db.add(meeting)
-    db.commit()
-    db.refresh(meeting)
+    meeting_service = MeetingService(db)
+    meeting = meeting_service.get_or_create_meeting(meeting_data=data, user=user)
     return meeting
 
 
 @router.get("/{meeting_id}", response_model=MeetingOut)
 def get_meeting(meeting_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     meeting_service = MeetingService(db)
+    session_id = f"{meeting_id}-{user.id}"
     
-    # Шаг 1: Получаем митинг
-    meeting = meeting_service.get_meeting_by_id(meeting_id=meeting_id, user=user)
+    meeting = meeting_service.get_meeting_by_session_id(session_id=session_id, user=user)
     if not meeting:
         raise HTTPException(status_code=404, detail="Meeting not found")
         
-    # Шаг 2: Получаем сегменты
-    segments = meeting_service.get_latest_segments_for_meeting(meeting_id=meeting_id)
+    segments = meeting_service.get_latest_segments_for_session(session_id=session_id)
     
-    # Шаг 3: Склеиваем и возвращаем
     meeting.segments = segments
     return meeting
 
@@ -63,7 +44,8 @@ def get_meeting(meeting_id: str, user: User = Depends(get_current_user), db: Ses
 @router.get("/{meeting_id}/info", response_model=MeetingOutList)
 def get_meeting_info(meeting_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     meeting_service = MeetingService(db)
-    meeting = meeting_service.get_meeting_by_id(meeting_id=meeting_id, user=user)
+    session_id = f"{meeting_id}-{user.id}"
+    meeting = meeting_service.get_meeting_by_session_id(session_id=session_id, user=user)
     if not meeting:
         raise HTTPException(status_code=404, detail="Meeting not found")
     return meeting
@@ -74,21 +56,20 @@ def get_meeting_info(meeting_id: str, user: User = Depends(get_current_user), db
 def add_segment(
     meeting_id: str,
     seg_in: TranscriptSegmentCreate,
-    user = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    session_id = f"{meeting_id}-{user.id}"
+    
     # Проверяем, что встреча существует и принадлежит текущему пользователю
-    meeting = (
-        db.query(Meeting)
-        .filter(Meeting.id == meeting_id, Meeting.user_id == user.id)
-        .first()
-    )
+    meeting_service = MeetingService(db)
+    meeting = meeting_service.get_meeting_by_session_id(session_id=session_id, user=user)
     if not meeting:
         raise HTTPException(status_code=404, detail="Meeting not found")
 
     # Создаем новый сегмент с переданными данными
     segment = TranscriptSegment(
-        meeting_id=meeting_id,
+        session_id=session_id,
         google_meet_user_id=seg_in.google_meet_user_id,
         speaker_username=seg_in.username,
         timestamp=seg_in.timestamp,
