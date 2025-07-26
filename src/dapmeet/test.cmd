@@ -1,0 +1,3 @@
+curl 'http://localhost:8000/api/meetings/xwj-cshx-vid/segments' \
+...
+  --data-raw '{"google_meet_user_id":"spaces/juz0kqalQQEB/devices/328","username":"Arstanbek Raimbekov","timestamp":"2025-07-26T12:53:30.773Z","text":"Привет Привет","ver":6,"mess_id":"2"}'
