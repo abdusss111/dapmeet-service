@@ -5,6 +5,7 @@ from dapmeet.models.meeting import Meeting
 from dapmeet.models.segment import TranscriptSegment
 from dapmeet.services.auth import get_current_user
 from dapmeet.core.deps import get_db
+from dapmeet.services.meetings import MeetingService
 from dapmeet.schemas.meetings import MeetingCreate, MeetingOut, MeetingPatch, MeetingOutList
 from dapmeet.schemas.segment import TranscriptSegmentCreate, TranscriptSegmentOut
 
@@ -44,20 +45,25 @@ def create_or_get_meeting(
 
 @router.get("/{meeting_id}", response_model=MeetingOut)
 def get_meeting(meeting_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    meeting = db.query(Meeting).filter(Meeting.id == meeting_id, Meeting.user_id == user.id).first()
+    meeting_service = MeetingService(db)
+    
+    # Шаг 1: Получаем митинг
+    meeting = meeting_service.get_meeting_by_id(meeting_id=meeting_id, user=user)
     if not meeting:
         raise HTTPException(status_code=404, detail="Meeting not found")
+        
+    # Шаг 2: Получаем сегменты
+    segments = meeting_service.get_latest_segments_for_meeting(meeting_id=meeting_id)
+    
+    # Шаг 3: Склеиваем и возвращаем
+    meeting.segments = segments
     return meeting
 
 
 @router.get("/{meeting_id}/info", response_model=MeetingOutList)
 def get_meeting_info(meeting_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    meeting = (
-        db.query(Meeting)
-        .options(noload(Meeting.segments))
-        .filter(Meeting.id == meeting_id, Meeting.user_id == user.id)
-        .first()
-    )
+    meeting_service = MeetingService(db)
+    meeting = meeting_service.get_meeting_by_id(meeting_id=meeting_id, user=user)
     if not meeting:
         raise HTTPException(status_code=404, detail="Meeting not found")
     return meeting
