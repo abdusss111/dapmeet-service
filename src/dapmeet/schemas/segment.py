@@ -14,11 +14,11 @@ class TranscriptSegmentOut(BaseModel):
     id: int
     meeting_id: str
     google_meet_user_id: str
-    username: str
+    username: Optional[str] = None
     timestamp: datetime
     text: str
-    ver: int
-    mess_id: Optional[str]
+    ver: Optional[int] = None
+    mess_id: Optional[str] = None
     created_at: datetime
 
     class Config:
