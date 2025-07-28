@@ -17,7 +17,7 @@ services:
   backend:
     build: .
     container_name: dapmeet-backend
-    command: uvicorn dapmeet.cmd.main:app --host 0.0.0.0 --port 8000 --reload
+    command: PYTHONPATH=src uvicorn dapmeet.cmd.main:app --host 0.0.0.0 --port 8000 --reload
     volumes:
       - .:/app
     ports:
