@@ -21,5 +21,4 @@ class TranscriptSegmentOut(BaseModel):
     mess_id: Optional[str] = Field(None, alias='message_id')
     created_at: datetime
 
-    class Config:
-        orm_mode = True
+    model_config = {'from_attributes': True, 'populate_by_name': True}

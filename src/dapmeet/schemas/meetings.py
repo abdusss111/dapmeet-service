@@ -22,8 +22,7 @@ class MeetingOut(BaseModel):
     segments: List[TranscriptSegmentOut]
     created_at: datetime
 
-    class Config:
-        orm_mode = True
+    model_config = {'from_attributes': True}
 
 class MeetingOutList(BaseModel):
     unique_session_id: str
@@ -32,5 +31,4 @@ class MeetingOutList(BaseModel):
     title: str
     created_at: datetime
 
-    class Config:
-        orm_mode = True
+    model_config = {'from_attributes': True}
