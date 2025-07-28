@@ -12,7 +12,7 @@ class TranscriptSegmentCreate(BaseModel):
 
 class TranscriptSegmentOut(BaseModel):
     id: int
-    meeting_id: str
+    session_id: str
     google_meet_user_id: str
     username: Optional[str] = Field(None, alias='speaker_username')
     timestamp: datetime
