@@ -39,7 +39,7 @@ def get_url():
     url = config.get_main_option("sqlalchemy.url")
     if url is None:
         # Используем переменную окружения как fallback
-        url = os.getenv("DATABASE_URL", "postgresql://dapuser:dappass@db:5432/dapmeet")
+        url = os.getenv("DATABASE_URL")
     return url
 
 def run_migrations_offline() -> None:
