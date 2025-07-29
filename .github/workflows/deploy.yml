@@ -23,7 +23,4 @@ jobs:
           cd ~/service
           git pull origin main
           docker-compose down
-          docker-compose build
-          docker-compose up -d db
-          sleep 10
-          docker-compose up -d backend
+          docker-compose up --build -d
