@@ -14,7 +14,11 @@ class TranscriptSegmentOut(BaseModel):
     id: int
     meeting_id: str
     google_meet_user_id: str
+    speaker_username: str
+    timestamp: datetime
+
     timestamp: str
+
     text: str
     version: int
     created_at: datetime
