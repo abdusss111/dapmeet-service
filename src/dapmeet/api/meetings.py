@@ -62,6 +62,7 @@ def add_segment(
     session_id = f"{meeting_id}-{user.id}"
     
     # Проверяем, что встреча существует и принадлежит текущему пользователю
+    print(seg_in)
     meeting_service = MeetingService(db)
     meeting = meeting_service.get_meeting_by_session_id(session_id=session_id, user=user)
     if not meeting:
