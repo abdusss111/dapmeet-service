@@ -6,7 +6,7 @@ on:
 
 jobs:
   # ----------------------------------------------------------------
-  # 1) Decide whether we need to run migrations
+  # 1) Decide whether we need to run migrations 
   # ----------------------------------------------------------------
   determine:
     runs-on: ubuntu-latest
