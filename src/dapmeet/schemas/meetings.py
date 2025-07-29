@@ -15,22 +15,20 @@ class MeetingUpdateTranscript(BaseModel):
     transcript: str
 
 class MeetingOut(BaseModel):
-    unique_session_id: str
-    meeting_id: str
+    id: str
     user_id: str
     title: str
     segments: List[TranscriptSegmentOut]
     created_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class MeetingOutList(BaseModel):
-    unique_session_id: str
-    meeting_id: str
+    id: str
     user_id: str
     title: str
     created_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
