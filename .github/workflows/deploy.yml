@@ -5,45 +5,56 @@ on:
     branches: [ main ]
 
 jobs:
-  deploy:
+  # ----------------------------------------------------------------
+  # 1) Decide whether we need to run migrations
+  # ----------------------------------------------------------------
+  determine:
     runs-on: ubuntu-latest
-
+    outputs:
+      run_migrations: ${{ steps.flag-check.outputs.run-migrations }}
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v3
 
-    # 1) Check for [migrate] in the commit message
-    - name: Determine if migrations should run
-      id: migration-check
-      run: |
-        COMMIT_MSG=$(git log -1 --pretty=format:'%s')
-        echo "Commit message: $COMMIT_MSG"
-        if [[ "$COMMIT_MSG" =~ \[migrate\] ]]; then
-          echo "run_migrations=true" >> $GITHUB_OUTPUT
-        else
-          echo "run_migrations=false" >> $GITHUB_OUTPUT
-        fi
-
-    # 2) Deploy & conditionally run migrations
-    - name: Deploy via SSH (and run migrations if flagged)
-      uses: appleboy/ssh-action@v0.1.10
-      with:
-        host: ${{ secrets.VPS_HOST }}
-        username: ${{ secrets.VPS_USER }}
-        key: ${{ secrets.VPS_KEY }}
-        script: |
-          cd ~/service
-          git pull origin main
-          docker-compose down
-
-          if [ "${{ steps.migration-check.outputs.run_migrations }}" = "true" ]; then
-            echo "=== [migrate] flag detected → Running Alembic migrations ==="
-            FULL_MSG="$(git log -1 --pretty=format:'%B')"
-            alembic revision --autogenerate -m "${FULL_MSG}"
-            alembic upgrade head
+      - name: Check for [migrate] flag
+        id: flag-check
+        run: |
+          # use GH's built‑in event data instead of raw `git log`
+          MSG="${{ github.event.head_commit.message }}"
+          echo "Commit message: $MSG"
+          if [[ $MSG == *"[migrate]"* ]]; then
+            echo "::set-output name=run-migrations::true"
           else
-            echo "=== No [migrate] flag → Skipping migrations ==="
+            echo "::set-output name=run-migrations::false"
           fi
 
-          docker-compose up --build -d
+  # ----------------------------------------------------------------
+  # 2) Deploy—and, if needed, run Alembic inside the Docker container
+  # ----------------------------------------------------------------
+  deploy:
+    needs: determine
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
 
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_KEY }}
+          script: |
+            cd ~/service
+            git pull origin main
+            docker-compose down
+
+            if [ "${{ needs.determine.outputs.run_migrations }}" = "true" ]; then
+              echo "=== [migrate] → Running Alembic migrations inside container ==="
+              # this ensures the same environment as your app:
+              docker-compose run --rm web alembic upgrade head
+            else
+              echo "=== No [migrate] flag → Skipping Alembic migrations ==="
+            fi
+
+            docker-compose up --build -d

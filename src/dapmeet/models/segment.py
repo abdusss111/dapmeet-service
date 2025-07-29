@@ -9,6 +9,7 @@ class TranscriptSegment(Base):
     id                  = Column(Integer, primary_key=True, autoincrement=True)
     meeting_id          = Column(String, ForeignKey("meetings.id", ondelete="CASCADE"), nullable=False, index=True)
     google_meet_user_id = Column(String(100), nullable=False)
+    speaker_username    = Column(String(100), nullable=False)
     timestamp           = Column(String, nullable=False)
     text                = Column(Text, nullable=False)
     version             = Column(Integer, nullable=False, default=1)
