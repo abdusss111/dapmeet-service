@@ -1,9 +1,8 @@
-name: Deploy
+name: Deploy & (Optional) Migrate
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
 
 jobs:
   deploy:
@@ -13,7 +12,20 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v3
 
-    - name: Deploy via SSH
+    # 1) Check for [migrate] in the commit message
+    - name: Determine if migrations should run
+      id: migration-check
+      run: |
+        COMMIT_MSG=$(git log -1 --pretty=format:'%s')
+        echo "Commit message: $COMMIT_MSG"
+        if [[ "$COMMIT_MSG" =~ \[migrate\] ]]; then
+          echo "run_migrations=true" >> $GITHUB_OUTPUT
+        else
+          echo "run_migrations=false" >> $GITHUB_OUTPUT
+        fi
+
+    # 2) Deploy & conditionally run migrations
+    - name: Deploy via SSH (and run migrations if flagged)
       uses: appleboy/ssh-action@v0.1.10
       with:
         host: ${{ secrets.VPS_HOST }}
@@ -23,4 +35,14 @@ jobs:
           cd ~/service
           git pull origin main
           docker-compose down
+
+          if [ "${{ steps.migration-check.outputs.run_migrations }}" = "true" ]; then
+            echo "=== [migrate] flag detected → Running Alembic migrations ==="
+            FULL_MSG="$(git log -1 --pretty=format:'%B')"
+            alembic revision --autogenerate -m "${FULL_MSG}"
+            alembic upgrade head
+          else
+            echo "=== No [migrate] flag → Skipping migrations ==="
+          fi
+
           docker-compose up --build -d
