@@ -9,7 +9,7 @@ from dapmeet.db.db import Base
 meeting_participants = Table(
     "meeting_participants",
     Base.metadata,
-    Column("session_id", String, ForeignKey("meetings.unique_session_id", ondelete="CASCADE"), primary_key=True),
+    Column("meeting_id", String, ForeignKey("meetings.id", ondelete="CASCADE"), primary_key=True),
     Column("user_id",    String, ForeignKey("users.id",    ondelete="CASCADE"), primary_key=True),
     Column("joined_at",  DateTime(timezone=True), nullable=False, server_default=func.now()),
     Column("left_at",    DateTime(timezone=True), nullable=True),
@@ -18,8 +18,7 @@ meeting_participants = Table(
 class Meeting(Base):
     __tablename__ = "meetings"
 
-    unique_session_id = Column(String, primary_key=True, index=True)
-    meeting_id      = Column(String, nullable=False, index=True)
+    id = Column(String, primary_key=True, index=True)
     user_id         = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     title           = Column(String(255), nullable=True)
     created_at      = Column(DateTime(timezone=True), nullable=False, server_default=func.now())

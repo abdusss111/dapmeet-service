@@ -1,5 +1,6 @@
 # src/dapmeet/db/init_db.py
 from dapmeet.db.db import Base, engine
+
 from os import getenv
 from dotenv import load_dotenv
 load_dotenv()
