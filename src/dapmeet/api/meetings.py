@@ -59,7 +59,7 @@ def add_segment(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    session_id = meeting_id
+    session_id = f"{meeting_id}-{user.id}"
     
     # Проверяем, что встреча существует и принадлежит текущему пользователю
     meeting_service = MeetingService(db)
