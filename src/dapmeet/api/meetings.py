@@ -31,7 +31,7 @@ def get_meeting(meeting_id: str, user: User = Depends(get_current_user), db: Ses
     meeting_service = MeetingService(db)
     session_id = f"{meeting_id}-{user.id}"
     
-    meeting = meeting_service.get_meeting_by_session_id(session_id=session_id, user=user)
+    meeting = meeting_service.get_meeting_by_session_id(session_id=session_id)
     if not meeting:
         raise HTTPException(status_code=404, detail="Meeting not found")
         
@@ -45,7 +45,7 @@ def get_meeting(meeting_id: str, user: User = Depends(get_current_user), db: Ses
 def get_meeting_info(meeting_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     meeting_service = MeetingService(db)
     session_id = f"{meeting_id}-{user.id}"
-    meeting = meeting_service.get_meeting_by_session_id(session_id=session_id, user=user)
+    meeting = meeting_service.get_meeting_by_session_id(session_id=session_id)
     if not meeting:
         raise HTTPException(status_code=404, detail="Meeting not found")
     return meeting
@@ -63,7 +63,7 @@ def add_segment(
     
     # Проверяем, что встреча существует и принадлежит текущему пользователю
     meeting_service = MeetingService(db)
-    meeting = meeting_service.get_meeting_by_session_id(session_id=session_id, user=user)
+    meeting = meeting_service.get_meeting_by_session_id(session_id=session_id)
     if not meeting:
         raise HTTPException(status_code=404, detail="Meeting not found")
 
