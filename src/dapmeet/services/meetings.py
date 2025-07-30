@@ -31,12 +31,12 @@ class MeetingService:
         self.db.refresh(new_meeting)
         return new_meeting
 
-    def get_meeting_by_session_id(self, session_id: str, user: User) -> Meeting | None:
+    def get_meeting_by_session_id(self, session_id: str) -> Meeting | None:
         """Получает одну встречу по ID сессии без связанных сегментов."""
         return (
             self.db.query(Meeting)
             .options(noload(Meeting.segments))
-            .filter(Meeting.unique_session_id == session_id, Meeting.user_id == user.id)
+            .filter(Meeting.unique_session_id == session_id)
             .first()
         )
 
