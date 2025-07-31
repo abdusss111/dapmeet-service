@@ -15,9 +15,27 @@ router = APIRouter()
 def get_meetings(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     meeting_service = MeetingService(db)
     meetings = db.query(Meeting).filter(Meeting.user_id == user.id).order_by(Meeting.created_at.desc()).all()
-    speakers = meeting_service.get_speakers_for_user(user.id)
-    print(speakers)
-    return meetings
+    
+    # Build response with speakers for each meeting
+    result = []
+    for meeting in meetings:
+        # Get speakers for this specific meeting
+        meeting_speakers = [s[0] for s in db.query(TranscriptSegment.speaker_username)
+                           .filter(TranscriptSegment.session_id == meeting.unique_session_id)
+                           .distinct().all()]
+        
+        # Create meeting dict with speakers
+        meeting_dict = {
+            "unique_session_id": meeting.unique_session_id,
+            "meeting_id": meeting.meeting_id,
+            "user_id": meeting.user_id,
+            "title": meeting.title,
+            "created_at": meeting.created_at,
+            "speakers": meeting_speakers
+        }
+        result.append(MeetingOutList(**meeting_dict))
+    
+    return result
     
 @router.post("/", response_model=MeetingOut)
 def create_or_get_meeting(
