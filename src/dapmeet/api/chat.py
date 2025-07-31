@@ -13,7 +13,7 @@ from dapmeet.schemas.messages import (
     ChatMessageResponse
 )
 
-router = APIRouter(prefix="/chat", tags=["chat"])
+router = APIRouter()
 
 
 @router.get(
