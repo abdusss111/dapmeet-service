@@ -67,3 +67,10 @@ class MeetingService:
         result = self.db.execute(filtered_segments_query).mappings().all()
         
         return [TranscriptSegment(**row) for row in result]
+
+    def get_speakers_for_user(self, user_id: str) -> list[str]:
+        """Получает список уникальных имен пользователей, которые говорили в встречах пользователя."""
+        return [s[0] for s in self.db.query(TranscriptSegment.speaker_username)
+                .join(Meeting, TranscriptSegment.session_id == Meeting.unique_session_id)
+                .filter(Meeting.user_id == user_id)
+                .distinct().all()]
