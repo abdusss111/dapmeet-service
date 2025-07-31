@@ -16,6 +16,7 @@ def get_meetings(user: User = Depends(get_current_user), db: Session = Depends(g
     meeting_service = MeetingService(db)
     meetings = db.query(Meeting).filter(Meeting.user_id == user.id).order_by(Meeting.created_at.desc()).all()
     speakers = meeting_service.get_speakers_for_user(user.id)
+    print(speakers)
     return meetings
     
 @router.post("/", response_model=MeetingOut)
