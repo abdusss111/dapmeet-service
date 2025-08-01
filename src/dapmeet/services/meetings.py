@@ -76,7 +76,7 @@ class MeetingService:
         )
         
         result = self.db.execute(filtered_segments_query).mappings().all()
-        
+
         return [TranscriptSegment(**row) for row in result]
 
     # In MeetingService
