@@ -40,6 +40,16 @@ class MeetingService:
             .first()
         )
 
+    def get_meeting_by_session_id_v2(self, session_id: str, user_id: str) -> Meeting | None:
+        """Получает одну встречу по ID сессии без связанных сегментов."""
+        u_session_id = f"{session_id}-{user_id}"
+        return (
+            self.db.query(Meeting)
+            .options(noload(Meeting.segments))
+            .filter(Meeting.unique_session_id == u_session_id)
+            .first()
+        )
+
     def get_latest_segments_for_session(self, session_id: str) -> list[TranscriptSegment]:
         """Получает только последние версии сегментов для указанной сессии."""
         subquery = (
