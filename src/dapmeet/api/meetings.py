@@ -52,8 +52,8 @@ def get_meeting(meeting_id: str, user: User = Depends(get_current_user), db: Ses
                        .filter(TranscriptSegment.session_id == session_id)
                        .distinct().all()]
     
-    # Convert segments to schemas
-    segments_out = [TranscriptSegmentOut.model_validate(segment) for segment in segments]
+    # Convert segments to schemas - ADD from_attributes=True
+    segments_out = [TranscriptSegmentOut.model_validate(segment, from_attributes=True) for segment in segments]
     
     # Create meeting dict with all data
     meeting_dict = {
@@ -67,6 +67,7 @@ def get_meeting(meeting_id: str, user: User = Depends(get_current_user), db: Ses
     }
     
     return MeetingOut(**meeting_dict)
+
 
 @router.get("/{meeting_id}/info", response_model=MeetingOutList)
 def get_meeting_info(meeting_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
