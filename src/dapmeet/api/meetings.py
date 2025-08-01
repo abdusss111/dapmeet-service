@@ -12,30 +12,12 @@ from dapmeet.schemas.segment import TranscriptSegmentCreate, TranscriptSegmentOu
 router = APIRouter()
 
 @router.get("/", response_model=list[MeetingOutList])
-def get_meetings(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def get_meetings(
+    user: User = Depends(get_current_user), 
+    db: Session = Depends(get_db)
+):
     meeting_service = MeetingService(db)
-    meetings = db.query(Meeting).filter(Meeting.user_id == user.id).order_by(Meeting.created_at.desc()).all()
-    
-    # Build response with speakers for each meeting
-    result = []
-    for meeting in meetings:
-        # Get speakers for this specific meeting
-        meeting_speakers = [s[0] for s in db.query(TranscriptSegment.speaker_username)
-                           .filter(TranscriptSegment.session_id == meeting.unique_session_id)
-                           .distinct().all()]
-        
-        # Create meeting dict with speakers
-        meeting_dict = {
-            "unique_session_id": meeting.unique_session_id,
-            "meeting_id": meeting.meeting_id,
-            "user_id": meeting.user_id,
-            "title": meeting.title,
-            "created_at": meeting.created_at,
-            "speakers": meeting_speakers
-        }
-        result.append(MeetingOutList(**meeting_dict))
-    
-    return result
+    return meeting_service.get_meetings_with_speakers(user.id)
     
 @router.post("/", response_model=MeetingOut)
 def create_or_get_meeting(
@@ -48,19 +30,19 @@ def create_or_get_meeting(
     return meeting
 
 
-@router.get("/{meeting_id}", response_model=MeetingOut)
-def get_meeting(meeting_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+@router.get("/{session_id}", response_model=MeetingOutList)
+def get_meeting(
+    session_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     meeting_service = MeetingService(db)
-    session_id = meeting_id
+    meetings = meeting_service.get_meetings_with_speakers(user.id, session_id)
     
-    meeting = meeting_service.get_meeting_by_session_id(session_id=session_id)
-    if not meeting:
+    if not meetings:
         raise HTTPException(status_code=404, detail="Meeting not found")
-        
-    segments = meeting_service.get_latest_segments_for_session(session_id=session_id)
     
-    meeting.segments = segments
-    return meeting
+    return meetings[0]  # Return single meeting
 
 
 @router.get("/{meeting_id}/info", response_model=MeetingOutList)

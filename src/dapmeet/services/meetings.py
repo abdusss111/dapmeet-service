@@ -79,9 +79,64 @@ class MeetingService:
         
         return [TranscriptSegment(**row) for row in result]
 
-    def get_speakers_for_user(self, user_id: str) -> list[str]:
-        """Получает список уникальных имен пользователей, которые говорили в встречах пользователя."""
-        return [s[0] for s in self.db.query(TranscriptSegment.speaker_username)
-                .join(Meeting, TranscriptSegment.session_id == Meeting.unique_session_id)
-                .filter(Meeting.user_id == user_id)
-                .distinct().all()]
+    # In MeetingService
+    def get_meetings_with_speakers(self, user_id: int, session_id: str = None) -> list[MeetingOutList]:
+        """
+        Get meetings with speakers - can be filtered to a single meeting or get all user meetings
+        
+        Args:
+            user_id: User ID to filter meetings
+            session_id: Optional session ID to get specific meeting only
+        
+        Returns:
+            List of MeetingOutList objects
+        """
+        # Base query with join and aggregation
+        query = (
+            self.db.query(
+                Meeting.unique_session_id,
+                Meeting.meeting_id,
+                Meeting.user_id,
+                Meeting.title,
+                Meeting.created_at,
+                func.array_agg(
+                    func.distinct(TranscriptSegment.speaker_username)
+                ).label('speakers')
+            )
+            .outerjoin(
+                TranscriptSegment, 
+                Meeting.unique_session_id == TranscriptSegment.session_id
+            )
+            .filter(Meeting.user_id == user_id)
+        )
+        
+        # Add session filter if specified
+        if session_id:
+            query = query.filter(Meeting.unique_session_id == session_id)
+        
+        # Group and order
+        query = (
+            query.group_by(
+                Meeting.unique_session_id,
+                Meeting.meeting_id,
+                Meeting.user_id,
+                Meeting.title,
+                Meeting.created_at
+            )
+            .order_by(Meeting.created_at.desc())
+        )
+        
+        results = query.all()
+        
+        return [
+            MeetingOutList(
+                unique_session_id=row.unique_session_id,
+                meeting_id=row.meeting_id,
+                user_id=row.user_id,
+                title=row.title,
+                created_at=row.created_at,
+                speakers=[s for s in (row.speakers or []) if s is not None]
+            )
+            for row in results
+        ]
+        
