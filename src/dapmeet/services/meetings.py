@@ -5,7 +5,7 @@ from dapmeet.models.meeting import Meeting
 from dapmeet.models.segment import TranscriptSegment
 from dapmeet.models.user import User
 
-from dapmeet.schemas.meetings import MeetingCreate
+from dapmeet.schemas.meetings import MeetingCreate, MeetingOutList
 
 class MeetingService:
     def __init__(self, db: Session):
