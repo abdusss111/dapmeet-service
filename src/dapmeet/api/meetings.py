@@ -34,27 +34,39 @@ def create_or_get_meeting(
 def get_meeting(meeting_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     meeting_service = MeetingService(db)
     session_id = meeting_id
-
-    meeting = meeting_service.get_meeting_by_session_id(session_id=session_id)
+    
+    # Get the meeting and verify ownership
+    meeting = db.query(Meeting).filter(
+        Meeting.unique_session_id == session_id,
+        Meeting.user_id == user.id
+    ).first()
+    
     if not meeting:
         raise HTTPException(status_code=404, detail="Meeting not found")
-        
+    
+    # Get segments for this meeting
     segments = meeting_service.get_latest_segments_for_session(session_id=session_id)
     
-    # Extract speakers using the reusable method
-    meetings_with_speakers = meeting_service.get_meetings_with_speakers(user.id, session_id)
-    speakers = meetings_with_speakers[0].speakers if meetings_with_speakers else []
+    # Get speakers for this specific meeting
+    meeting_speakers = [s[0] for s in db.query(TranscriptSegment.speaker_username)
+                       .filter(TranscriptSegment.session_id == session_id)
+                       .distinct().all()]
     
-    # Build the response schema with all data
-    return MeetingOut(
-        unique_session_id=meeting.unique_session_id,
-        meeting_id=meeting.meeting_id,
-        user_id=meeting.user_id,
-        title=meeting.title,
-        created_at=meeting.created_at,
-        segments=segments,
-        speakers=speakers
-    )
+    # Convert segments to schemas
+    segments_out = [TranscriptSegmentOut.model_validate(segment) for segment in segments]
+    
+    # Create meeting dict with all data
+    meeting_dict = {
+        "unique_session_id": meeting.unique_session_id,
+        "meeting_id": meeting.meeting_id,
+        "user_id": meeting.user_id,
+        "title": meeting.title,
+        "created_at": meeting.created_at,
+        "speakers": meeting_speakers,
+        "segments": segments_out
+    }
+    
+    return MeetingOut(**meeting_dict)
 
 @router.get("/{meeting_id}/info", response_model=MeetingOutList)
 def get_meeting_info(meeting_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
