@@ -30,20 +30,31 @@ def create_or_get_meeting(
     return meeting
 
 
-@router.get("/{session_id}", response_model=MeetingOutList)
-def get_meeting(
-    session_id: str,
-    user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
+@router.get("/{meeting_id}", response_model=MeetingOut)
+def get_meeting(meeting_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     meeting_service = MeetingService(db)
-    meetings = meeting_service.get_meetings_with_speakers(user.id, session_id)
-    
-    if not meetings:
-        raise HTTPException(status_code=404, detail="Meeting not found")
-    
-    return meetings[0]  # Return single meeting
+    session_id = meeting_id
 
+    meeting = meeting_service.get_meeting_by_session_id(session_id=session_id)
+    if not meeting:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+        
+    segments = meeting_service.get_latest_segments_for_session(session_id=session_id)
+    
+    # Extract speakers using the reusable method
+    meetings_with_speakers = meeting_service.get_meetings_with_speakers(user.id, session_id)
+    speakers = meetings_with_speakers[0].speakers if meetings_with_speakers else []
+    
+    # Build the response schema with all data
+    return MeetingOut(
+        unique_session_id=meeting.unique_session_id,
+        meeting_id=meeting.meeting_id,
+        user_id=meeting.user_id,
+        title=meeting.title,
+        created_at=meeting.created_at,
+        segments=segments,
+        speakers=speakers
+    )
 
 @router.get("/{meeting_id}/info", response_model=MeetingOutList)
 def get_meeting_info(meeting_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
