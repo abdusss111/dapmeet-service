@@ -72,7 +72,7 @@ class MeetingService:
         filtered_segments_query = (
             select(*segment_columns)
             .where(literal_column("row_num") == 1)
-            .order_by(literal_column("timestamp"))
+            .order_by(literal_column("message_id"))
         )
         
         result = self.db.execute(filtered_segments_query).mappings().all()
