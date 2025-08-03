@@ -12,9 +12,13 @@ from dapmeet.schemas.segment import TranscriptSegmentCreate, TranscriptSegmentOu
 router = APIRouter()
 
 @router.get("/", response_model=list[MeetingOutList])
-def get_meetings(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    return db.query(Meeting).filter(Meeting.user_id == user.id).order_by(Meeting.created_at.desc()).all()
-
+def get_meetings(
+    user: User = Depends(get_current_user), 
+    db: Session = Depends(get_db)
+):
+    meeting_service = MeetingService(db)
+    return meeting_service.get_meetings_with_speakers(user.id)
+    
 @router.post("/", response_model=MeetingOut)
 def create_or_get_meeting(
     data: MeetingCreate, 
@@ -29,23 +33,47 @@ def create_or_get_meeting(
 @router.get("/{meeting_id}", response_model=MeetingOut)
 def get_meeting(meeting_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     meeting_service = MeetingService(db)
-    session_id = f"{meeting_id}-{user.id}"
+    session_id = meeting_id
     
-    meeting = meeting_service.get_meeting_by_session_id(session_id=session_id, user=user)
+    # Get the meeting and verify ownership
+    meeting = db.query(Meeting).filter(
+        Meeting.unique_session_id == session_id,
+        Meeting.user_id == user.id
+    ).first()
+    
     if not meeting:
         raise HTTPException(status_code=404, detail="Meeting not found")
-        
+    
+    # Get segments for this meeting
     segments = meeting_service.get_latest_segments_for_session(session_id=session_id)
     
-    meeting.segments = segments
-    return meeting
+    # Get speakers for this specific meeting
+    meeting_speakers = [s[0] for s in db.query(TranscriptSegment.speaker_username)
+                       .filter(TranscriptSegment.session_id == session_id)
+                       .distinct().all()]
+    
+    # Convert segments to schemas - ADD from_attributes=True
+    segments_out = [TranscriptSegmentOut.model_validate(segment, from_attributes=True) for segment in segments]
+    
+    # Create meeting dict with all data
+    meeting_dict = {
+        "unique_session_id": meeting.unique_session_id,
+        "meeting_id": meeting.meeting_id,
+        "user_id": meeting.user_id,
+        "title": meeting.title,
+        "created_at": meeting.created_at,
+        "speakers": meeting_speakers,
+        "segments": segments_out
+    }
+    
+    return MeetingOut(**meeting_dict)
 
 
 @router.get("/{meeting_id}/info", response_model=MeetingOutList)
 def get_meeting_info(meeting_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     meeting_service = MeetingService(db)
-    session_id = f"{meeting_id}-{user.id}"
-    meeting = meeting_service.get_meeting_by_session_id(session_id=session_id, user=user)
+    session_id = meeting_id
+    meeting = meeting_service.get_meeting_by_session_id_v2(session_id=session_id, user_id=user.id)
     if not meeting:
         raise HTTPException(status_code=404, detail="Meeting not found")
     return meeting
@@ -64,7 +92,7 @@ def add_segment(
     # Проверяем, что встреча существует и принадлежит текущему пользователю
     print(seg_in)
     meeting_service = MeetingService(db)
-    meeting = meeting_service.get_meeting_by_session_id(session_id=session_id, user=user)
+    meeting = meeting_service.get_meeting_by_session_id(session_id=session_id)
     if not meeting:
         raise HTTPException(status_code=404, detail="Meeting not found")
 

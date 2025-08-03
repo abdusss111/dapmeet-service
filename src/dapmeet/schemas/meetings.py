@@ -21,7 +21,8 @@ class MeetingOut(BaseModel):
     title: str
     segments: List[TranscriptSegmentOut]
     created_at: datetime
-
+    speakers: List[str] = []
+    
     class Config:
         orm_mode = True
 
@@ -31,6 +32,7 @@ class MeetingOutList(BaseModel):
     user_id: str
     title: str
     created_at: datetime
+    speakers: List[str] = []  # Add this field
 
     class Config:
         orm_mode = True
