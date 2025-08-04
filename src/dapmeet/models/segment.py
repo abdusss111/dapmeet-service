@@ -18,6 +18,3 @@ class TranscriptSegment(Base):
 
     meeting             = relationship("Meeting", back_populates="segments")
 
-    __table_args__ = (
-        UniqueConstraint("session_id","google_meet_user_id","timestamp","version", name="uix_segment_session_speaker_ts_ver"),
-    )
