@@ -56,24 +56,3 @@ app.include_router(main_router)
 @app.get("/")
 async def root():
     return {"message": "DapMeet API is running"}
-
-@app.get("/health")
-async def health_check():
-    try:
-        from dapmeet.db.db import engine
-        # Hide sensitive database credentials in health check
-        db_url = str(engine.url)
-        if '@' in db_url:
-            masked_url = db_url.split('@')[0].split('//')[0] + "//" + "***@" + db_url.split('@')[1]
-        else:
-            masked_url = "***"
-        
-        return {
-            "status": "healthy",
-            "database_url": masked_url
-        }
-    except Exception:
-        return {
-            "status": "healthy",
-            "database_url": "not configured"
-        }
