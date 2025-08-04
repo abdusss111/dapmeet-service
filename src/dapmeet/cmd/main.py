@@ -55,4 +55,4 @@ app.include_router(main_router)
 
 @app.get("/")
 async def root():
-    return {"message": "DapMeet API is running"}
+    return {"message": "Dapmeet API is running"}
