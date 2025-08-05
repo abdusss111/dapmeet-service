@@ -53,7 +53,7 @@ class MeetingService:
         all_segments = (
             self.db.query(TranscriptSegment)
             .filter(TranscriptSegment.session_id == session_id)
-            .order_by(desc(TranscriptSegment.message_id), desc(TranscriptSegment.timestamp), desc(TranscriptSegment.version))
+            .order_by(desc(TranscriptSegment.message_id), desc(TranscriptSegment.version))
             .all()
         )
         
@@ -89,7 +89,7 @@ class MeetingService:
             final_processed_segments.extend(processed_subgroups)
 
         # Шаг 4: Финальная сортировка по timestamp
-        final_processed_segments.sort(key=lambda s: s.timestamp)
+        final_processed_segments.sort(key=lambda s: s.version)
 
         return final_processed_segments
 
