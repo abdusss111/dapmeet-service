@@ -89,7 +89,7 @@ class MeetingService:
             final_processed_segments.extend(processed_subgroups)
 
         # Шаг 4: Финальная сортировка по timestamp
-        final_processed_segments.sort(key=lambda s: s.version)
+        final_processed_segments.sort(key=lambda s: (s.timestamp, s.version))
 
         return final_processed_segments
 
