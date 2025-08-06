@@ -111,3 +111,15 @@ def add_segment(
     db.commit()
     db.refresh(segment)
     return segment
+
+
+@router.get("/test/segments/{session_id}", response_model=list[TranscriptSegmentOut])
+def get_test_segments(session_id: str, db: Session = Depends(get_db)):
+    """
+    Тестовый эндпоинт для получения обработанных сегментов без авторизации.
+    """
+    meeting_service = MeetingService(db)
+    segments = meeting_service.get_latest_segments_for_session(session_id=session_id)
+    if not segments:
+        raise HTTPException(status_code=404, detail="No segments found for this session ID")
+    return segments
