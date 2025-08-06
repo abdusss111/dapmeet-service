@@ -38,5 +38,5 @@ class Meeting(Base):
     segments     = relationship(
         "TranscriptSegment", back_populates="meeting",
         cascade="all, delete-orphan",
-        order_by="TranscriptSegment.created_at"
+        order_by="TranscriptSegment.timestamp, TranscriptSegment.version"
     )
