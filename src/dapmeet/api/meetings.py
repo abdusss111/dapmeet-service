@@ -34,9 +34,9 @@ def get_meeting(meeting_id: str, user: User = Depends(get_current_user), db: Ses
     meeting = meeting_service.get_meeting_by_session_id(session_id=session_id, user=user)
     if not meeting:
         raise HTTPException(status_code=404, detail="Meeting not found")
-        
     segments = meeting_service.get_latest_segments_for_session(session_id=session_id)
-    
+    print('updated segment list count', len(segments))
+
     meeting.segments = segments
     return meeting
 
