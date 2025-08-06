@@ -71,31 +71,3 @@ class MeetingService:
         result = self.db.execute(query).mappings().all()
 
         return [TranscriptSegment(**row) for row in result]
-
-    def get_latest_segments_for_session_with_sql(self, session_id: str) -> list[TranscriptSegment]:
-        """Получает только последние версии сегментов для указанной сессии."""
-        subquery = (
-            select(
-                TranscriptSegment,
-                func.row_number()
-                .over(
-                    partition_by=TranscriptSegment.message_id,
-                    order_by=TranscriptSegment.version.desc(),
-                )
-                .label("row_num"),
-            )
-            .where(TranscriptSegment.session_id == session_id)
-            .subquery()
-        )
-
-        segment_columns = [c for c in subquery.c if c.name != 'row_num']
-
-        filtered_segments_query = (
-            select(*segment_columns)
-            .where(literal_column("row_num") == 1)
-            .order_by(literal_column("message_id"))
-        )
-
-        result = self.db.execute(filtered_segments_query).mappings().all()
-
-        return [TranscriptSegment(**row) for row in result]
