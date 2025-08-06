@@ -11,9 +11,14 @@ class TranscriptSegment(Base):
     google_meet_user_id = Column(String(100), nullable=False, index=True)
     speaker_username    = Column(String(100), nullable=False)
     timestamp           = Column(DateTime(timezone=True), nullable=False, index=True)
+    timestamp2          = Column(DateTime(timezone=True), nullable=False)
     text                = Column(Text, nullable=False)
     version             = Column(Integer, nullable=False, default=1)
     message_id          = Column(String(100), nullable=True)
     created_at          = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
     meeting             = relationship("Meeting", back_populates="segments")
+
+    # __table_args__ = (
+    #     UniqueConstraint("session_id","google_meet_user_id","timestamp","version", name="uix_segment_session_speaker_ts_ver"),
+    # )
