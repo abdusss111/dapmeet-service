@@ -38,8 +38,8 @@ load_dotenv()
 from dapmeet.api import api_router as main_router
 
 app = FastAPI(
-    title="DapMeet API",
-    description="API for DapMeet meeting transcription service",
+    title="Dapmeet API",
+    description="API for Dapmeet meeting transcription service",
     version="1.0.0"
 )
 
