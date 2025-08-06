@@ -46,28 +46,31 @@ class MeetingService:
         Получает и обрабатывает сегменты транскрипции для указанной сессии,
         используя SQL-запрос для фильтрации и сортировки.
         """
+        partition_key = TranscriptSegment.google_meet_user_id + '-' + TranscriptSegment.message_id
         cte = (
             select(
                 TranscriptSegment,
                 func.row_number()
                 .over(
-                    partition_by=(TranscriptSegment.google_meet_user_id + '-' + TranscriptSegment.message_id),
+                    partition_by=partition_key,
                     order_by=[TranscriptSegment.message_id, TranscriptSegment.version.desc()],
                 )
                 .label("row_num"),
+                func.min(TranscriptSegment.created_at)
+                .over(partition_by=partition_key)
+                .label("min_timestamp"),
             )
             .where(TranscriptSegment.session_id == session_id)
             .cte("ranked_segments")
         )
 
-        segment_columns = [c for c in cte.c if c.name != 'row_num']
+        segment_columns = [c for c in cte.c if c.name not in ('row_num', 'min_timestamp')]
 
         query = (
             select(*segment_columns)
             .where(cte.c.row_num == 1)
-            .order_by(cte.c.timestamp, cte.c.version)
+            .order_by(cte.c.min_timestamp, cte.c.timestamp, cte.c.version)
         )
-
+        
         result = self.db.execute(query).mappings().all()
-
         return [TranscriptSegment(**row) for row in result]
