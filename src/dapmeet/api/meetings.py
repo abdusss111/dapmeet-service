@@ -43,6 +43,7 @@ def get_meeting(meeting_id: str, user: User = Depends(get_current_user), db: Ses
     
     if not meeting:
         raise HTTPException(status_code=404, detail="Meeting not found")
+
     
     # Get segments for this meeting
     segments = meeting_service.get_latest_segments_for_session(session_id=session_id)
@@ -67,6 +68,7 @@ def get_meeting(meeting_id: str, user: User = Depends(get_current_user), db: Ses
     }
     
     return MeetingOut(**meeting_dict)
+
 
 
 @router.get("/{meeting_id}/info", response_model=MeetingOutList)

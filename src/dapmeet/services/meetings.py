@@ -55,81 +55,35 @@ class MeetingService:
     def get_latest_segments_for_session(self, session_id: str) -> list[TranscriptSegment]:
         """
         Получает и обрабатывает сегменты транскрипции для указанной сессии,
-        применяя сложную логику фильтрации и сортировки.
+        используя SQL-запрос для фильтрации и сортировки.
         """
-        from collections import defaultdict
-        from itertools import groupby
-
-        # Шаг 0: Выгрузка и первая группировка по пользователям
-        all_segments = (
-            self.db.query(TranscriptSegment)
-            .filter(TranscriptSegment.session_id == session_id)
-            .order_by(desc(TranscriptSegment.message_id), desc(TranscriptSegment.version))
-            .all()
-        )
-        
-        user_groups = defaultdict(list)
-        for segment in all_segments:
-            user_groups[segment.google_meet_user_id].append(segment)
-
-        final_processed_segments = []
-
-        # Обработка для каждого пользователя
-        for user_id, segments in user_groups.items():
-            
-            # Шаг 1: Группировка по ключу сессии сообщения
-            segments.sort(key=lambda s: s.message_id.split('.'))
-            message_session_groups = {k: list(v) for k, v in groupby(segments, key=lambda s: s.message_id.split('.')[0])}
-
-            processed_subgroups = []
-
-            for _, subgroup in message_session_groups.items():
-                # Шаг 2: Сортировка по версии
-                # subgroup.sort(key=lambda s: s.version, reverse=True)
-
-                # Шаг 3.1: Фильтр "Последняя версия в ряду"
-                actual_list = []
-                message_ids_set = set()
-                for i, segment in enumerate(subgroup):
-                    if segment.message_id not in message_ids_set:
-                        message_ids_set.add(segment.message_id)
-                        actual_list.append(segment)
-                actual_list.sort(key=lambda s: s.message_id)
-                processed_subgroups.extend(actual_list)
-            
-            final_processed_segments.extend(processed_subgroups)
-
-        # Шаг 4: Финальная сортировка по timestamp
-        final_processed_segments.sort(key=lambda s: s.version)
-
-        return final_processed_segments
-
-    def get_latest_segments_for_session_with_sql(self, session_id: str) -> list[TranscriptSegment]:
-        """Получает только последние версии сегментов для указанной сессии."""
-        subquery = (
+        partition_key = TranscriptSegment.google_meet_user_id + '-' + TranscriptSegment.message_id
+        cte = (
             select(
                 TranscriptSegment,
                 func.row_number()
                 .over(
-                    partition_by=TranscriptSegment.message_id,
-                    order_by=TranscriptSegment.version.desc(),
+                    partition_by=partition_key,
+                    order_by=[TranscriptSegment.message_id, TranscriptSegment.version.desc()],
                 )
                 .label("row_num"),
+                func.min(TranscriptSegment.created_at)
+                .over(partition_by=partition_key)
+                .label("min_timestamp"),
             )
             .where(TranscriptSegment.session_id == session_id)
-            .subquery()
+            .cte("ranked_segments")
         )
 
-        segment_columns = [c for c in subquery.c if c.name != 'row_num']
+        segment_columns = [c for c in cte.c if c.name not in ('row_num', 'min_timestamp')]
 
-        filtered_segments_query = (
+        query = (
             select(*segment_columns)
-            .where(literal_column("row_num") == 1)
-            .order_by(literal_column("message_id"))
+            .where(cte.c.row_num == 1)
+            .order_by(cte.c.min_timestamp, cte.c.timestamp, cte.c.version)
         )
-
-        result = self.db.execute(filtered_segments_query).mappings().all()
-
+        
+        result = self.db.execute(query).mappings().all()
         return [TranscriptSegment(**row) for row in result]
 
     # In MeetingService
