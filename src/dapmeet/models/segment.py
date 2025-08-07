@@ -17,3 +17,4 @@ class TranscriptSegment(Base):
     created_at          = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
     meeting             = relationship("Meeting", back_populates="segments")
+
