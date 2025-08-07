@@ -32,19 +32,9 @@ class MeetingService:
         self.db.refresh(new_meeting)
         return new_meeting
 
-    def get_meeting_by_session_id(self, session_id: str) -> Meeting | None:
-        """Получает одну встречу по ID сессии без связанных сегментов."""
-        return (
-            self.db.query(Meeting)
-            .options(noload(Meeting.segments))
-            .filter(Meeting.unique_session_id == session_id)
-            .first()
-        )
-
-    def get_meeting_by_session_id_v2(self, session_id: str, user_id: str) -> Meeting | None:
+    def get_meeting_by_session_id(self, session_id: str, user_id: str) -> Meeting | None:
         """Получает одну встречу по ID сессии без связанных сегментов."""
         u_session_id = f"{session_id}-{user_id}"
-        print(f"Getting meeting with unique_session_id: {u_session_id}")
         return (
             self.db.query(Meeting)
             .options(noload(Meeting.segments))
