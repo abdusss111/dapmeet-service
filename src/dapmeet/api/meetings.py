@@ -33,7 +33,7 @@ def create_or_get_meeting(
 @router.get("/{meeting_id}", response_model=MeetingOut)
 def get_meeting(meeting_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     meeting_service = MeetingService(db)
-    session_id = meeting_id
+    session_id = f"{meeting_id}-{user.id}"
     
     # Get the meeting and verify ownership
     meeting = db.query(Meeting).filter(
@@ -75,7 +75,7 @@ def get_meeting(meeting_id: str, user: User = Depends(get_current_user), db: Ses
 def get_meeting_info(meeting_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     meeting_service = MeetingService(db)
     session_id = meeting_id
-    meeting = meeting_service.get_meeting_by_session_id_v2(session_id=session_id, user_id=user.id)
+    meeting = meeting_service.get_meeting_by_session_id(session_id=session_id, user_id=user.id)
     if not meeting:
         raise HTTPException(status_code=404, detail="Meeting not found")
     return meeting
@@ -92,9 +92,8 @@ def add_segment(
     session_id = f"{meeting_id}-{user.id}"
     
     # Проверяем, что встреча существует и принадлежит текущему пользователю
-    print(seg_in)
     meeting_service = MeetingService(db)
-    meeting = meeting_service.get_meeting_by_session_id(session_id=session_id)
+    meeting = meeting_service.get_meeting_by_session_id(session_id=session_id, user_id=user.id)
     if not meeting:
         raise HTTPException(status_code=404, detail="Meeting not found")
 
