@@ -26,18 +26,18 @@ router = APIRouter()
 
 def verify_meeting_access(
     session_id: str, 
-    user: User, 
-    db: Session
-) -> Meeting:
+    user: User,
+    db: Session,
+    ) -> Meeting:
     """
     Verify that user has access to the meeting.
     Returns meeting object if access is granted.
     """
+    u_session_id = f"{session_id}-{user.id}"
     meeting = (
         db.query(Meeting)
         .filter(
-            Meeting.unique_session_id == session_id,
-            Meeting.user_id == user.id
+            Meeting.unique_session_id == u_session_id,
         )
         .first()
     )
