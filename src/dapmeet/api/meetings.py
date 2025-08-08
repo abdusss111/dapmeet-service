@@ -89,11 +89,10 @@ def add_segment(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    session_id = f"{meeting_id}-{user.id}"
     
     # Проверяем, что встреча существует и принадлежит текущему пользователю
     meeting_service = MeetingService(db)
-    meeting = meeting_service.get_meeting_by_session_id(session_id=session_id, user_id=user.id)
+    meeting = meeting_service.get_meeting_by_session_id(session_id=meeting_id, user_id=user.id)
     if not meeting:
         raise HTTPException(status_code=404, detail="Meeting not found")
 
