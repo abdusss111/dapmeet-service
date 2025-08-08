@@ -95,13 +95,13 @@ def add_segment(
     meeting = meeting_service.get_meeting_by_session_id(session_id=meeting_id, user_id=user.id)
     if not meeting:
         raise HTTPException(status_code=404, detail="Meeting not found")
-
+    session_id = meeting.unique_session_id
     # Создаем новый сегмент с переданными данными
     segment = TranscriptSegment(
         session_id=session_id,
         google_meet_user_id=seg_in.google_meet_user_id,
         speaker_username=seg_in.username,
-        timestamp=seg_in.timestamp,
+        timestamp=seg_in.imestamp,
         text=seg_in.text,
         version=seg_in.ver,
         message_id=seg_in.mess_id
