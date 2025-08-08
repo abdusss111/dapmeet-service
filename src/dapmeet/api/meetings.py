@@ -101,7 +101,7 @@ def add_segment(
         session_id=session_id,
         google_meet_user_id=seg_in.google_meet_user_id,
         speaker_username=seg_in.username,
-        timestamp=seg_in.imestamp,
+        timestamp=seg_in.timestamp,
         text=seg_in.text,
         version=seg_in.ver,
         message_id=seg_in.mess_id
