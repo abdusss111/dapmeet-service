@@ -75,17 +75,17 @@ def get_chat_history(
         # Calculate offset
         offset = (page - 1) * size
         
-        # Get total count
+        # Get total count (use verified meeting unique_session_id)
         total_count = (
             db.query(ChatMessage)
-            .filter(ChatMessage.session_id == session_id)
+            .filter(ChatMessage.session_id == meeting.unique_session_id)
             .count()
         )
         
-        # Get paginated messages
+        # Get paginated messages (use verified meeting unique_session_id)
         messages = (
             db.query(ChatMessage)
-            .filter(ChatMessage.session_id == session_id)
+            .filter(ChatMessage.session_id == meeting.unique_session_id)
             .order_by(ChatMessage.created_at.asc())
             .offset(offset)
             .limit(size)
@@ -136,9 +136,9 @@ def add_chat_message(
         # Verify access
         meeting = verify_meeting_access(session_id, current_user, db)
         
-        # Create new message
+        # Create new message (use verified meeting unique_session_id)
         new_message = ChatMessage(
-            session_id=session_id,
+            session_id=meeting.unique_session_id,
             sender=message.sender,
             content=message.content
         )
@@ -200,10 +200,10 @@ def replace_chat_history(
         db.begin()
         
         try:
-            # Delete existing messages
+            # Delete existing messages (use verified meeting unique_session_id)
             deleted_count = (
                 db.query(ChatMessage)
-                .filter(ChatMessage.session_id == session_id)
+                .filter(ChatMessage.session_id == meeting.unique_session_id)
                 .delete()
             )
             
@@ -213,7 +213,7 @@ def replace_chat_history(
             new_messages = []
             for msg_data in request.messages:
                 message = ChatMessage(
-                    session_id=session_id,
+                    session_id=meeting.unique_session_id,
                     sender=msg_data.sender,
                     content=msg_data.content
                 )
@@ -273,10 +273,10 @@ def delete_chat_history(
         # Verify access
         meeting = verify_meeting_access(session_id, current_user, db)
         
-        # Delete messages
+        # Delete messages (use verified meeting unique_session_id)
         deleted_count = (
             db.query(ChatMessage)
-            .filter(ChatMessage.session_id == session_id)
+            .filter(ChatMessage.session_id == meeting.unique_session_id)
             .delete()
         )
         
@@ -326,12 +326,12 @@ def get_message(
         # Verify access
         meeting = verify_meeting_access(session_id, current_user, db)
         
-        # Get message
+        # Get message (use verified meeting unique_session_id)
         message = (
             db.query(ChatMessage)
             .filter(
                 ChatMessage.id == message_id,
-                ChatMessage.session_id == session_id
+                ChatMessage.session_id == meeting.unique_session_id
             )
             .first()
         )
