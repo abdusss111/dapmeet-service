@@ -1,86 +1,93 @@
+import logging
+from datetime import datetime
+from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Depends, Body
 from sqlalchemy.orm import Session
-from typing import List
+from sqlalchemy.exc import IntegrityError
 
-from dapmeet.models.meeting import Meeting
 from dapmeet.models.chat_message import ChatMessage
 from dapmeet.models.user import User
 from dapmeet.services.auth import get_current_user
 from dapmeet.core.deps import get_db
 from dapmeet.schemas.messages import (
-    ChatHistoryRequest,
     ChatMessageCreate,
-    ChatMessageResponse
+    ChatMessageResponse,
 )
+from dapmeet.services.meetings import MeetingService
 
-router = APIRouter(prefix="/chat", tags=["chat"])
+logger = logging.getLogger(__name__)
+
+router = APIRouter()
 
 
 @router.get(
-    "/history",
+    "/{meeting_id}/history",
     response_model=List[ChatMessageResponse],
     summary="Получить историю чата по встрече"
 )
 def get_chat_history(
     meeting_id: str,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    limit: int = 200,
+    before: Optional[datetime] = None,
 ):
-    # Проверяем, что пользователь — владелец встречи
-    meeting = (
-        db.query(Meeting)
-        .filter(Meeting.id == meeting_id, Meeting.user_id == user.id)
-        .first()
-    )
+    session_id = f"{meeting_id}-{user.id}"
+    
+    meeting_service = MeetingService(db)
+    meeting = meeting_service.get_meeting_by_session_id(session_id=session_id, user=user)
     if not meeting:
         raise HTTPException(status_code=404, detail="Meeting not found")
 
-    messages = (
-        db.query(ChatMessage)
-        .filter(ChatMessage.meeting_id == meeting_id)
-        .order_by(ChatMessage.created_at)
-        .all()
-    )
+    if limit < 1:
+        limit = 1
+    if limit > 1000:
+        limit = 1000
+
+    query = db.query(ChatMessage).filter(ChatMessage.session_id == session_id)
+    if before is not None:
+        query = query.filter(ChatMessage.created_at < before)
+
+    messages = query.order_by(ChatMessage.created_at).limit(limit).all()
     return messages
 
 
 @router.post(
-    "/history",
-    response_model=List[ChatMessageResponse],
-    summary="Сохранить (заменить) историю чата"
+    "/{meeting_id}/messages",
+    response_model=ChatMessageResponse,
+    status_code=201,
+    summary="Добавить одно сообщение в историю чата"
 )
-def save_chat_history(
-    data: ChatHistoryRequest = Body(...),
+def add_chat_message(
+    meeting_id: str,
+    message: ChatMessageCreate = Body(...),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user)
 ):
-    # Проверяем права доступа
-    meeting = (
-        db.query(Meeting)
-        .filter(Meeting.id == data.meeting_id, Meeting.user_id == user.id)
-        .first()
-    )
+    session_id = f"{meeting_id}-{user.id}"
+    
+    meeting_service = MeetingService(db)
+    meeting = meeting_service.get_meeting_by_session_id(session_id=session_id, user=user)
     if not meeting:
         raise HTTPException(status_code=404, detail="Meeting not found")
 
-    # Удаляем старые сообщения
-    db.query(ChatMessage).filter(ChatMessage.meeting_id == data.meeting_id).delete()
+    new_message_data = {
+        "session_id": session_id,
+        "sender": message.sender,
+        "content": message.content,
+    }
+    if message.created_at is not None:
+        new_message_data["created_at"] = message.created_at
 
-    # Вставляем новые
-    new_msgs = []
-    for msg in data.history:
-        cm = ChatMessage(
-            meeting_id=data.meeting_id,
-            sender=msg.sender,
-            content=msg.content,
-            created_at=msg.created_at  # если в схеме передаётся
-        )
-        db.add(cm)
-        new_msgs.append(cm)
+    chat_message = ChatMessage(**new_message_data)
 
-    db.commit()
-    # Обновляем объекты, чтобы загрузить id и timestamps от БД
-    for cm in new_msgs:
-        db.refresh(cm)
+    try:
+        db.add(chat_message)
+        db.commit()
+        db.refresh(chat_message)
+    except IntegrityError:
+        db.rollback()
+        logger.exception("Failed to insert chat message due to integrity error")
+        raise HTTPException(status_code=400, detail="Invalid chat message data")
 
-    return new_msgs
+    return chat_message
