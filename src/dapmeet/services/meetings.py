@@ -4,7 +4,8 @@ from sqlalchemy.sql.expression import literal_column
 from dapmeet.models.meeting import Meeting
 from dapmeet.models.segment import TranscriptSegment
 from dapmeet.models.user import User
-
+from datetime import datetime, timedelta, timezone
+from sqlalchemy import desc
 from dapmeet.schemas.meetings import MeetingCreate, MeetingOutList
 
 
@@ -13,25 +14,57 @@ class MeetingService:
         self.db = db
 
     def get_or_create_meeting(self, meeting_data: MeetingCreate, user: User) -> Meeting:
-        """Получает или создает встречу по уникальному ID сессии."""
-        session_id = f"{meeting_data.id}-{user.id}"
+        """
+        Получает или создаёт встречу по уникальному ID сессии.
+        Правила:
+        - Если встреча (последняя) существует и с момента её создания прошло >= 24 часов —
+            создаём новую с unique_session_id = "<base_session_id>-<YYYY-MM-DD>" (дата без времени).
+        - Если прошло < 24 часов — продолжаем писать в существующую.
+        - Если встречи нет — создаём новую (без суффикса).
+        """
+        base_session_id = f"{meeting_data.id}-{user.id}"
+        now_utc = datetime.now(timezone.utc)
 
-        meeting = self.db.query(Meeting).filter(Meeting.unique_session_id == session_id).first()
+        # Ищем последнюю встречу по этому base_session_id (включая старые с суффиксом даты)
+        last_meeting = (
+            self.db.query(Meeting)
+            .filter(Meeting.unique_session_id.like(f"{base_session_id}%"))
+            .order_by(desc(Meeting.created_at))
+            .first()
+        )
 
-        if meeting:
-            return meeting
+        if last_meeting:
+            age = now_utc - last_meeting.created_at
+            if age < timedelta(hours=24):
+                # Меньше 24 часов — используем существующую встречу
+                return last_meeting
+            else:
+                # Больше/равно 24 часов — создаём новую с суффиксом даты (без времени)
+                suffix = now_utc.date().isoformat()  # YYYY-MM-DD
+                new_unique_session_id = f"{base_session_id}-{suffix}"
 
+                new_meeting = Meeting(
+                    unique_session_id=new_unique_session_id,
+                    meeting_id=meeting_data.id,
+                    user_id=user.id,
+                    title=meeting_data.title,
+                )
+                self.db.add(new_meeting)
+                self.db.commit()
+                self.db.refresh(new_meeting)
+                return new_meeting
+
+        # Встреч не было — создаём первую (без суффикса)
         new_meeting = Meeting(
-            unique_session_id=session_id,
+            unique_session_id=base_session_id,
             meeting_id=meeting_data.id,
             user_id=user.id,
-            title=meeting_data.title
+            title=meeting_data.title,
         )
         self.db.add(new_meeting)
         self.db.commit()
         self.db.refresh(new_meeting)
         return new_meeting
-
     def get_meeting_by_session_id(self, session_id: str, user_id: str) -> Meeting | None:
         """Получает одну встречу по ID сессии без связанных сегментов."""
         u_session_id = f"{session_id}-{user_id}"
