@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends
-from sqlalchemy.orm import Session, noload, desc
+from sqlalchemy.orm import Session, noload
 from dapmeet.models.user import User
 from dapmeet.models.meeting import Meeting
 from dapmeet.models.segment import TranscriptSegment
@@ -8,6 +8,7 @@ from dapmeet.core.deps import get_db
 from dapmeet.services.meetings import MeetingService
 from dapmeet.schemas.meetings import MeetingCreate, MeetingOut, MeetingPatch, MeetingOutList
 from dapmeet.schemas.segment import TranscriptSegmentCreate, TranscriptSegmentOut
+from sqlalchemy import desc
 from datetime import datetime, timezone
 router = APIRouter()
 
