@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends
-from sqlalchemy.orm import Session, noload, desc, 
+from sqlalchemy.orm import Session, noload, desc
 from dapmeet.models.user import User
 from dapmeet.models.meeting import Meeting
 from dapmeet.models.segment import TranscriptSegment
