@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends
-from sqlalchemy.orm import Session, noload
+from sqlalchemy.orm import Session, noload, desc, 
 from dapmeet.models.user import User
 from dapmeet.models.meeting import Meeting
 from dapmeet.models.segment import TranscriptSegment
@@ -8,7 +8,7 @@ from dapmeet.core.deps import get_db
 from dapmeet.services.meetings import MeetingService
 from dapmeet.schemas.meetings import MeetingCreate, MeetingOut, MeetingPatch, MeetingOutList
 from dapmeet.schemas.segment import TranscriptSegmentCreate, TranscriptSegmentOut
-
+from datetime import datetime, timezone
 router = APIRouter()
 
 @router.get("/", response_model=list[MeetingOutList])
@@ -72,12 +72,33 @@ def get_meeting(meeting_id: str, user: User = Depends(get_current_user), db: Ses
 
 
 @router.get("/{meeting_id}/info", response_model=MeetingOutList)
-def get_meeting_info(meeting_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    meeting_service = MeetingService(db)
-    session_id = meeting_id
-    meeting = meeting_service.get_meeting_by_session_id(session_id=session_id, user_id=user.id)
+def get_meeting_info(
+    meeting_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Возвращает информацию о последней встрече для базового session_id.
+
+    Правила:
+      - Формируем base_session_id = f"{meeting_id}-{user.id}".
+      - Ищем все встречи, где unique_session_id LIKE "{base_session_id}%"
+        (это покроет базовый ID и варианты с суффиксом YYYY-MM-DD).
+      - Возвращаем самую свежую (по created_at).
+      - Если не найдено — 404.
+    """
+    base_session_id = f"{meeting_id}-{user.id}"
+
+    meeting = (
+        db.query(Meeting)
+        .filter(Meeting.unique_session_id.like(f"{base_session_id}%"))
+        .order_by(desc(Meeting.created_at))
+        .first()
+    )
+
     if not meeting:
         raise HTTPException(status_code=404, detail="Meeting not found")
+
     return meeting
 
 @router.post("/{meeting_id}/segments", 
