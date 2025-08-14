@@ -125,11 +125,13 @@ def metrics_system_performance(_: Dict[str, Any] = Depends(get_current_admin)):
 # User Management
 # =====================
 
+def get_users_count(db: Session = Depends(get_db)):
+    return db.query(User).count()
 
 @router.get("/users")
 def list_users(
     search: Optional[str] = None,
-    limit: int = 20,
+    limit: int = Depends(get_users_count),
     page: int = 1,
     _: Dict[str, Any] = Depends(get_current_admin),
     db: Session = Depends(get_db),
