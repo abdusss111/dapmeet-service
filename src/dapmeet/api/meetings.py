@@ -9,7 +9,7 @@ from dapmeet.services.meetings import MeetingService
 from dapmeet.schemas.meetings import MeetingCreate, MeetingOut, MeetingPatch, MeetingOutList
 from dapmeet.schemas.segment import TranscriptSegmentCreate, TranscriptSegmentOut
 from sqlalchemy import desc
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 router = APIRouter()
 
 @router.get("/", response_model=list[MeetingOutList])
@@ -79,28 +79,31 @@ def get_meeting_info(
     db: Session = Depends(get_db),
 ):
     """
-    Возвращает информацию о последней встрече для базового session_id.
-
-    Правила:
-      - Формируем base_session_id = f"{meeting_id}-{user.id}".
-      - Ищем все встречи, где unique_session_id LIKE "{base_session_id}%"
-        (это покроет базовый ID и варианты с суффиксом YYYY-MM-DD).
-      - Возвращаем самую свежую (по created_at).
-      - Если не найдено — 404.
+    Возвращает последнюю актуальную встречу (< 24 часов).
+    Если встречи нет или последняя >= 24 часов назад — 404.
     """
     base_session_id = f"{meeting_id}-{user.id}"
+    now_utc = datetime.now(timezone.utc)
 
-    meeting = (
+    # Берём самую свежую встречу для base_session_id (с учётом возможных суффиксов даты)
+    last_meeting = (
         db.query(Meeting)
         .filter(Meeting.unique_session_id.like(f"{base_session_id}%"))
         .order_by(desc(Meeting.created_at))
         .first()
     )
 
-    if not meeting:
+    if not last_meeting:
         raise HTTPException(status_code=404, detail="Meeting not found")
 
-    return meeting
+    # Проверяем "моложе ли 24 часов"
+    age = now_utc - last_meeting.created_at
+    if age >= timedelta(hours=24):
+        # Старше/равно 24ч — считаем неактуальной, просим клиента создать новую
+        raise HTTPException(status_code=404, detail="Meeting not found")
+
+    # Актуальная — возвращаем
+    return last_meeting
 
 @router.post("/{meeting_id}/segments", 
     response_model=TranscriptSegmentOut, 
