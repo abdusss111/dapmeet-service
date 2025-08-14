@@ -128,16 +128,30 @@ def metrics_system_performance(_: Dict[str, Any] = Depends(get_current_admin)):
 
 @router.get("/users")
 def list_users(
-    q: Optional[str] = None,
+    search: Optional[str] = None,
     limit: int = 20,
-    offset: int = 0,
+    page: int = 1,
     _: Dict[str, Any] = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
+    # Validate parameters
+    if page < 1:
+        page = 1
+    if limit < 1 or limit > 100:
+        limit = 20
     query = db.query(User)
-    if q:
-        query = query.filter(User.email.ilike(f"%{q}%"))
+    if search:
+        # Search in both email and name fields
+        query = query.filter(
+            (User.email.ilike(f"%{search}%")) | 
+            (User.name.ilike(f"%{search}%"))
+        )
+    
     total = query.count()
+    
+    # Calculate offset based on page number
+    offset = (page - 1) * limit
+    
     users = query.order_by(User.created_at.desc()).offset(offset).limit(limit).all()
     items = [
         {
@@ -148,7 +162,21 @@ def list_users(
         }
         for u in users
     ]
-    return {"total": total, "items": items}
+    
+    # Calculate pagination metadata
+    total_pages = (total + limit - 1) // limit  # Ceiling division
+    has_next = page < total_pages
+    has_prev = page > 1
+    
+    return {
+        "total": total,
+        "items": items,
+        "page": page,
+        "limit": limit,
+        "total_pages": total_pages,
+        "has_next": has_next,
+        "has_prev": has_prev
+    }
 
 
 @router.get("/users/{user_id}")
