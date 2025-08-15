@@ -12,7 +12,7 @@ GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_ID_EXTENSION = os.getenv("GOOGLE_CLIENT_ID_EXTENSION")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
 GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI")
-JWT_SECRET = os.getenv("NEXTAUTH_SECRET", "secret-key")
+JWT_SECRET = os.getenv("NEXTAUTH_SECRET")
 
 
 async def exchange_code_for_token(code: str) -> str:

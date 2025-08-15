@@ -8,9 +8,9 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 
 # Environment-driven admin auth configuration
-ADMIN_JWT_SECRET = os.getenv("ADMIN_JWT_SECRET", "change-this-admin-secret")
-ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "adminpass")
+ADMIN_JWT_SECRET = os.getenv("ADMIN_JWT_SECRET")
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
 
 
 admin_oauth2_scheme = HTTPBearer()
