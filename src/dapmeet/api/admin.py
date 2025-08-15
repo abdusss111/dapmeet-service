@@ -258,6 +258,81 @@ def users_stats(_: Dict[str, Any] = Depends(get_current_admin), db: Session = De
     return {"total_users": total_users}
 
 
+@router.get("/users/meetings/stats")
+def all_users_meetings_stats(
+    search: Optional[str] = Query(None, description="Search by user email or name"),
+    limit: int = Query(100, ge=1, le=500, description="Number of users to return"),
+    page: int = Query(1, ge=1, description="Page number"),
+    _: Dict[str, Any] = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """Get meeting statistics for all users"""
+    # Build base query with meeting count using subquery
+    subquery = (
+        db.query(
+            Meeting.user_id,
+            func.count(Meeting.unique_session_id).label('meeting_count')
+        )
+        .group_by(Meeting.user_id)
+        .subquery()
+    )
+    
+    # Join users with their meeting counts
+    query = (
+        db.query(
+            User.id,
+            User.email,
+            User.name,
+            User.created_at,
+            func.coalesce(subquery.c.meeting_count, 0).label('total_meetings')
+        )
+        .outerjoin(subquery, User.id == subquery.c.user_id)
+    )
+    
+    # Apply search filter
+    if search:
+        query = query.filter(
+            (User.email.ilike(f"%{search}%")) | 
+            (User.name.ilike(f"%{search}%"))
+        )
+    
+    # Get total count for pagination
+    total = query.count()
+    
+    # Apply pagination and ordering
+    offset = (page - 1) * limit
+    results = query.order_by(User.created_at.desc()).offset(offset).limit(limit).all()
+    
+    # Calculate pagination metadata
+    total_pages = (total + limit - 1) // limit
+    has_next = page < total_pages
+    has_prev = page > 1
+    
+    return {
+        "filters": {
+            "search": search
+        },
+        "pagination": {
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "total_pages": total_pages,
+            "has_next": has_next,
+            "has_prev": has_prev
+        },
+        "users": [
+            {
+                "user_id": result.id,
+                "user_email": result.email,
+                "user_name": result.name,
+                "user_created_at": result.created_at,
+                "total_meetings": result.total_meetings
+            }
+            for result in results
+        ]
+    }
+
+
 @router.get("/users/{user_id}/meetings/stats")
 def user_meetings_stats(
     user_id: str,
