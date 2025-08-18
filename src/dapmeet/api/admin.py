@@ -479,12 +479,10 @@ def all_meetings_filtered(
         },
         "meetings": [
             {
-                "unique_session_id": m.unique_session_id,
                 "meeting_id": m.meeting_id,
                 "user_id": m.user_id,
                 "user_email": m.user.email,
                 "user_name": m.user.name,
-                "title": m.title,
                 "created_at": m.created_at
             }
             for m in meetings
