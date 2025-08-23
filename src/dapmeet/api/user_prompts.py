@@ -167,3 +167,82 @@ async def get_user_prompts_count(
     prompt_service = PromptService(db)
     prompts, total = await prompt_service.get_user_prompts(current_user.id, page=1, limit=1)
     return {"total_user_prompts": total}
+
+
+# ============================================================================
+# READ-ONLY ACCESS TO ADMIN PROMPTS FOR REGULAR USERS
+# ============================================================================
+
+@router.get("/admin-prompts", response_model=PromptListResponse)
+async def get_admin_prompts_readonly(
+    page: int = Query(1, ge=1, description="Page number"),
+    limit: int = Query(50, ge=1, le=100, description="Page size"),
+    _: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db)
+):
+    """Get admin prompts (read-only access for users)"""
+    prompt_service = PromptService(db)
+    prompts, total = await prompt_service.get_admin_prompts(page, limit)
+    
+    total_pages = (total + limit - 1) // limit
+    has_next = page < total_pages
+    has_prev = page > 1
+    
+    return PromptListResponse(
+        prompts=prompts,
+        total=total,
+        page=page,
+        limit=limit,
+        total_pages=total_pages,
+        has_next=has_next,
+        has_prev=has_prev
+    )
+
+
+@router.get("/admin-prompts/{prompt_id}", response_model=PromptResponse)
+async def get_admin_prompt_readonly(
+    prompt_id: int,
+    _: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db)
+):
+    """Get admin prompt by ID (read-only access for users)"""
+    prompt_service = PromptService(db)
+    prompt = await prompt_service.get_prompt_by_id(prompt_id)
+    
+    if not prompt:
+        raise HTTPException(status_code=404, detail="Prompt not found")
+    
+    if prompt.prompt_type != "admin":
+        raise HTTPException(status_code=404, detail="Admin prompt not found")
+    
+    return prompt
+
+
+@router.get("/admin-prompts/by-name/{prompt_name}", response_model=PromptResponse)
+async def get_admin_prompt_by_name_readonly(
+    prompt_name: str,
+    _: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db)
+):
+    """Get admin prompt by name (read-only access for users)"""
+    prompt_service = PromptService(db)
+    prompt = await prompt_service.get_prompt_by_name(prompt_name)
+    
+    if not prompt:
+        raise HTTPException(status_code=404, detail="Prompt not found")
+    
+    if prompt.prompt_type != "admin":
+        raise HTTPException(status_code=404, detail="Admin prompt not found")
+    
+    return prompt
+
+
+@router.get("/admin-prompts/stats/count")
+async def get_admin_prompts_count_readonly(
+    _: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db)
+):
+    """Get count of admin prompts (read-only access for users)"""
+    prompt_service = PromptService(db)
+    prompts, total = await prompt_service.get_admin_prompts(page=1, limit=1)
+    return {"total_admin_prompts": total}
