@@ -1,7 +1,8 @@
 from fastapi import APIRouter, HTTPException, Depends, Query, status
 from fastapi.responses import JSONResponse
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy import select, delete, func
 from typing import List, Optional
 import logging
 
@@ -9,7 +10,7 @@ from dapmeet.models.meeting import Meeting
 from dapmeet.models.chat_message import ChatMessage
 from dapmeet.models.user import User
 from dapmeet.services.auth import get_current_user
-from dapmeet.core.deps import get_db
+from dapmeet.core.deps import get_async_db
 from dapmeet.schemas.messages import (
     ChatMessageCreate,
     ChatMessageResponse,
@@ -24,23 +25,20 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def verify_meeting_access(
-    session_id: str, 
+async def verify_meeting_access(
+    session_id: str,
     user: User,
-    db: Session,
+    db: AsyncSession,
     ) -> Meeting:
     """
     Verify that user has access to the meeting.
     Returns meeting object if access is granted.
     """
     u_session_id = f"{session_id}-{user.id}"
-    meeting = (
-        db.query(Meeting)
-        .filter(
-            Meeting.unique_session_id == u_session_id,
-        )
-        .first()
+    result = await db.execute(
+        select(Meeting).where(Meeting.unique_session_id == u_session_id)
     )
+    meeting = result.scalar_one_or_none()
     
     if not meeting:
         logger.warning(f"User {user.id} attempted to access session {session_id}")
@@ -58,11 +56,11 @@ def verify_meeting_access(
     summary="Get chat history for a meeting session",
     description="Retrieve paginated chat history for a specific meeting session"
 )
-def get_chat_history(
+async def get_chat_history(
     session_id: str,
     page: int = Query(1, ge=1, description="Page number"),
     size: int = Query(50, ge=1, le=100, description="Page size"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user)
 ) -> ChatHistoryResponse:
     """
@@ -70,27 +68,27 @@ def get_chat_history(
     """
     try:
         # Verify access
-        meeting = verify_meeting_access(session_id, current_user, db)
+        meeting = await verify_meeting_access(session_id, current_user, db)
         
         # Calculate offset
         offset = (page - 1) * size
         
         # Get total count (use verified meeting unique_session_id)
-        total_count = (
-            db.query(ChatMessage)
-            .filter(ChatMessage.session_id == meeting.unique_session_id)
-            .count()
+        total_count = await db.scalar(
+            select(func.count(ChatMessage.id)).where(
+                ChatMessage.session_id == meeting.unique_session_id
+            )
         )
         
         # Get paginated messages (use verified meeting unique_session_id)
-        messages = (
-            db.query(ChatMessage)
-            .filter(ChatMessage.session_id == meeting.unique_session_id)
+        result = await db.execute(
+            select(ChatMessage)
+            .where(ChatMessage.session_id == meeting.unique_session_id)
             .order_by(ChatMessage.created_at.asc())
             .offset(offset)
             .limit(size)
-            .all()
         )
+        messages = result.scalars().all()
         
         logger.info(f"Retrieved {len(messages)} messages for session {session_id}")
         
@@ -123,10 +121,10 @@ def get_chat_history(
     summary="Add a single message to chat history",
     description="Add a new message to the chat history of a meeting session"
 )
-def add_chat_message(
+async def add_chat_message(
     session_id: str,
     message: ChatMessageCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user)
 ) -> ChatMessageResponse:
     """
@@ -134,7 +132,7 @@ def add_chat_message(
     """
     try:
         # Verify access
-        meeting = verify_meeting_access(session_id, current_user, db)
+        meeting = await verify_meeting_access(session_id, current_user, db)
         
         # Create new message (use verified meeting unique_session_id)
         new_message = ChatMessage(
@@ -144,8 +142,8 @@ def add_chat_message(
         )
         
         db.add(new_message)
-        db.commit()
-        db.refresh(new_message)
+        await db.commit()
+        await db.refresh(new_message)
         
         logger.info(f"Added message to session {session_id} by {message.sender}")
         
@@ -154,14 +152,14 @@ def add_chat_message(
     except HTTPException:
         raise
     except SQLAlchemyError as e:
-        db.rollback()
+        await db.rollback()
         logger.error(f"Database error in add_chat_message: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to save message"
         )
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         logger.error(f"Unexpected error in add_chat_message: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -175,10 +173,10 @@ def add_chat_message(
     summary="Replace entire chat history",
     description="Replace the entire chat history for a meeting session (destructive operation)"
 )
-def replace_chat_history(
+async def replace_chat_history(
     session_id: str,
     request: ChatHistoryBulkRequest,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user)
 ) -> ChatHistoryResponse:
     """
@@ -194,18 +192,19 @@ def replace_chat_history(
             )
         
         # Verify access
-        meeting = verify_meeting_access(session_id, current_user, db)
+        meeting = await verify_meeting_access(session_id, current_user, db)
         
         # Start transaction
-        db.begin()
+        await db.begin()
         
         try:
             # Delete existing messages (use verified meeting unique_session_id)
-            deleted_count = (
-                db.query(ChatMessage)
-                .filter(ChatMessage.session_id == meeting.unique_session_id)
-                .delete()
+            result = await db.execute(
+                delete(ChatMessage).where(
+                    ChatMessage.session_id == meeting.unique_session_id
+                )
             )
+            deleted_count = result.rowcount or 0
             
             logger.info(f"Deleted {deleted_count} existing messages for session {session_id}")
             
@@ -221,11 +220,11 @@ def replace_chat_history(
                 new_messages.append(message)
             
             # Commit transaction
-            db.commit()
+            await db.commit()
             
             # Refresh all messages to get IDs and timestamps
             for message in new_messages:
-                db.refresh(message)
+                await db.refresh(message)
             
             logger.info(f"Replaced chat history for session {session_id} with {len(new_messages)} messages")
             
@@ -236,7 +235,7 @@ def replace_chat_history(
             )
             
         except Exception:
-            db.rollback()
+            await db.rollback()
             raise
             
     except HTTPException:
@@ -261,9 +260,9 @@ def replace_chat_history(
     summary="Delete all chat history",
     description="Delete all chat messages for a meeting session"
 )
-def delete_chat_history(
+async def delete_chat_history(
     session_id: str,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -271,16 +270,15 @@ def delete_chat_history(
     """
     try:
         # Verify access
-        meeting = verify_meeting_access(session_id, current_user, db)
+        meeting = await verify_meeting_access(session_id, current_user, db)
         
         # Delete messages (use verified meeting unique_session_id)
-        deleted_count = (
-            db.query(ChatMessage)
-            .filter(ChatMessage.session_id == meeting.unique_session_id)
-            .delete()
+        result = await db.execute(
+            delete(ChatMessage).where(ChatMessage.session_id == meeting.unique_session_id)
         )
+        deleted_count = result.rowcount or 0
         
-        db.commit()
+        await db.commit()
         
         logger.info(f"Deleted {deleted_count} messages for session {session_id}")
         
@@ -292,14 +290,14 @@ def delete_chat_history(
     except HTTPException:
         raise
     except SQLAlchemyError as e:
-        db.rollback()
+        await db.rollback()
         logger.error(f"Database error in delete_chat_history: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete chat history"
         )
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         logger.error(f"Unexpected error in delete_chat_history: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -313,10 +311,10 @@ def delete_chat_history(
     summary="Get a specific message",
     description="Retrieve a specific message by its ID"
 )
-def get_message(
+async def get_message(
     session_id: str,
     message_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user)
 ) -> ChatMessageResponse:
     """
@@ -324,17 +322,16 @@ def get_message(
     """
     try:
         # Verify access
-        meeting = verify_meeting_access(session_id, current_user, db)
+        meeting = await verify_meeting_access(session_id, current_user, db)
         
         # Get message (use verified meeting unique_session_id)
-        message = (
-            db.query(ChatMessage)
-            .filter(
+        result = await db.execute(
+            select(ChatMessage).where(
                 ChatMessage.id == message_id,
-                ChatMessage.session_id == meeting.unique_session_id
+                ChatMessage.session_id == meeting.unique_session_id,
             )
-            .first()
         )
+        message = result.scalar_one_or_none()
         
         if not message:
             raise HTTPException(

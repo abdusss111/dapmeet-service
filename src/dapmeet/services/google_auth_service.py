@@ -4,7 +4,8 @@ load_dotenv(dotenv_path=os.path.join(os.getcwd(), ".env"))
 
 import httpx
 import jwt
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException
 from dapmeet.models.user import User
 
@@ -15,23 +16,22 @@ GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI")
 JWT_SECRET = os.getenv("NEXTAUTH_SECRET")
 
 
-async def exchange_code_for_token(code: str) -> str:
+async def exchange_code_for_token(code: str, http_client: httpx.AsyncClient) -> str:
     """
     Обменивает authorization code на access token
     Используется для стандартного OAuth flow на фронте
     """
-    async with httpx.AsyncClient() as client:
-        token_resp = await client.post(
-            "https://oauth2.googleapis.com/token",
-            data={
-                "code": code,
-                "client_id": GOOGLE_CLIENT_ID,
-                "client_secret": GOOGLE_CLIENT_SECRET,
-                "redirect_uri": GOOGLE_REDIRECT_URI,
-                "grant_type": "authorization_code"
-            },
-            headers={"Content-Type": "application/x-www-form-urlencoded"}
-        )
+    token_resp = await http_client.post(
+        "https://oauth2.googleapis.com/token",
+        data={
+            "code": code,
+            "client_id": GOOGLE_CLIENT_ID,
+            "client_secret": GOOGLE_CLIENT_SECRET,
+            "redirect_uri": GOOGLE_REDIRECT_URI,
+            "grant_type": "authorization_code"
+        },
+        headers={"Content-Type": "application/x-www-form-urlencoded"}
+    )
 
     if token_resp.status_code != 200:
         raise HTTPException(
@@ -43,15 +43,14 @@ async def exchange_code_for_token(code: str) -> str:
     return token_data["access_token"]
 
 
-async def validate_google_access_token(access_token: str) -> dict:
+async def validate_google_access_token(access_token: str, http_client: httpx.AsyncClient) -> dict:
     """
     Валидирует Google access token и возвращает информацию о токене
     Проверяет audience для защиты от token substitution атак
     """
-    async with httpx.AsyncClient() as client:
-        token_info_resp = await client.get(
-            f"https://www.googleapis.com/oauth2/v1/tokeninfo?access_token={access_token}"
-        )
+    token_info_resp = await http_client.get(
+        f"https://www.googleapis.com/oauth2/v1/tokeninfo?access_token={access_token}"
+    )
     
     if token_info_resp.status_code != 200:
         raise HTTPException(
@@ -88,17 +87,16 @@ async def validate_google_access_token(access_token: str) -> dict:
     return token_info
 
 
-async def get_google_user_info(access_token: str) -> dict:
+async def get_google_user_info(access_token: str, http_client: httpx.AsyncClient) -> dict:
     """
     Получает информацию о пользователе из Google API
     Сначала валидирует токен для безопасности
     """    
     # Теперь безопасно получаем user info
-    async with httpx.AsyncClient() as client:
-        user_resp = await client.get(
-            "https://www.googleapis.com/oauth2/v2/userinfo",
-            headers={"Authorization": f"Bearer {access_token}"}
-        )
+    user_resp = await http_client.get(
+        "https://www.googleapis.com/oauth2/v2/userinfo",
+        headers={"Authorization": f"Bearer {access_token}"}
+    )
 
     if user_resp.status_code != 200:
         raise HTTPException(
@@ -109,17 +107,16 @@ async def get_google_user_info(access_token: str) -> dict:
     return user_resp.json()
 
 
-async def validate_and_get_user_info(access_token: str) -> dict:
+async def validate_and_get_user_info(access_token: str, http_client: httpx.AsyncClient) -> dict:
     """
     Комбинированная функция: валидация токена + получение user info
     Для Chrome Identity API использования
     """
     # Валидируем токен
-
-    token_info = await validate_google_access_token(access_token)
+    token_info = await validate_google_access_token(access_token, http_client)
     
     # Получаем user info
-    user_info = await get_google_user_info(access_token)
+    user_info = await get_google_user_info(access_token, http_client)
     
     # Возвращаем объединенную информацию
     return {
@@ -132,11 +129,12 @@ async def validate_and_get_user_info(access_token: str) -> dict:
     }
 
 
-def find_or_create_user(user_info: dict, db: Session) -> User:
+async def find_or_create_user(user_info: dict, db: AsyncSession) -> User:
     """
-    Находит существующего пользователя или создает нового
+    Находит существующего пользователя или создает нового (async)
     """
-    user = db.query(User).filter(User.id == user_info["id"]).first()
+    result = await db.execute(select(User).where(User.id == user_info["id"]))
+    user = result.scalar_one_or_none()
     if not user:
         user = User(
             id=user_info["id"],
@@ -144,8 +142,8 @@ def find_or_create_user(user_info: dict, db: Session) -> User:
             name=user_info.get("name", "")
         )
         db.add(user)
-        db.commit()
-        db.refresh(user)
+        await db.commit()
+        await db.refresh(user)
     return user
 
 
@@ -162,7 +160,7 @@ def generate_jwt(user_info: dict) -> str:
     return jwt.encode(payload, JWT_SECRET, algorithm="HS256")
 
 
-async def authenticate_with_google_token(access_token: str, db: Session) -> tuple[User, str]:
+async def authenticate_with_google_token(access_token: str, db: AsyncSession, http_client: httpx.AsyncClient) -> tuple[User, str]:
     """
     Полный flow аутентификации для Chrome Identity:
     1. Валидирует Google токен
@@ -174,10 +172,10 @@ async def authenticate_with_google_token(access_token: str, db: Session) -> tupl
     """
     try:
         # Получаем и валидируем user info
-        user_info = await validate_and_get_user_info(access_token)
+        user_info = await validate_and_get_user_info(access_token, http_client)
         
         # Создаем/находим пользователя
-        user = find_or_create_user(user_info, db)
+        user = await find_or_create_user(user_info, db)
         
         # Генерируем наш JWT
         jwt_token = generate_jwt(user_info)

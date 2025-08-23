@@ -1,24 +1,26 @@
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from dapmeet.services.google_auth_service import JWT_SECRET
 from dapmeet.models.user import User
-from dapmeet.core.deps import get_db
+from dapmeet.core.deps import get_async_db
 import jwt
 
 oauth2_scheme = HTTPBearer()
 
-def get_current_user(
+async def get_current_user(
     token: HTTPAuthorizationCredentials = Depends(oauth2_scheme),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db)
 ):
     try:
         payload = jwt.decode(token.credentials, JWT_SECRET, algorithms=["HS256"])
     except jwt.PyJWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
-    user = db.query(User).filter(User.id == payload["sub"]).first()
+    result = await db.execute(select(User).where(User.id == payload["sub"]))
+    user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 

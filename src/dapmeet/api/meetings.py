@@ -1,58 +1,65 @@
 from fastapi import APIRouter, HTTPException, Depends
-from sqlalchemy.orm import Session, noload
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import noload
+from sqlalchemy import select, desc
 from dapmeet.models.user import User
 from dapmeet.models.meeting import Meeting
 from dapmeet.models.segment import TranscriptSegment
 from dapmeet.services.auth import get_current_user
-from dapmeet.core.deps import get_db
+from dapmeet.core.deps import get_async_db
 from dapmeet.services.meetings import MeetingService
 from dapmeet.schemas.meetings import MeetingCreate, MeetingOut, MeetingPatch, MeetingOutList
 from dapmeet.schemas.segment import TranscriptSegmentCreate, TranscriptSegmentOut
-from sqlalchemy import desc
 from datetime import datetime, timezone, timedelta
 router = APIRouter()
 
 @router.get("/", response_model=list[MeetingOutList])
-def get_meetings(
+async def get_meetings(
     user: User = Depends(get_current_user), 
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db)
 ):
     meeting_service = MeetingService(db)
-    return meeting_service.get_meetings_with_speakers(user.id)
+    return await meeting_service.get_meetings_with_speakers(user.id)
     
 @router.post("/", response_model=MeetingOut)
-def create_or_get_meeting(
+async def create_or_get_meeting(
     data: MeetingCreate, 
-    db: Session = Depends(get_db), 
+    db: AsyncSession = Depends(get_async_db), 
     user: User = Depends(get_current_user)
 ):
     meeting_service = MeetingService(db)
-    meeting = meeting_service.get_or_create_meeting(meeting_data=data, user=user)
+    meeting = await meeting_service.get_or_create_meeting(meeting_data=data, user=user)
     return meeting
 
 
 @router.get("/{meeting_id}", response_model=MeetingOut)
-def get_meeting(meeting_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+async def get_meeting(meeting_id: str, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_async_db)):
     meeting_service = MeetingService(db)
     session_id = f"{meeting_id}-{user.id}"
     
     # Get the meeting and verify ownership
-    meeting = db.query(Meeting).filter(
-        Meeting.unique_session_id == session_id,
-        Meeting.user_id == user.id
-    ).first()
+    result = await db.execute(
+        select(Meeting).where(
+            Meeting.unique_session_id == session_id,
+            Meeting.user_id == user.id,
+        ).limit(1)
+    )
+    meeting = result.scalar_one_or_none()
     
     if not meeting:
         raise HTTPException(status_code=404, detail="Meeting not found")
 
     
     # Get segments for this meeting
-    segments = meeting_service.get_latest_segments_for_session(session_id=session_id)
+    segments = await meeting_service.get_latest_segments_for_session(session_id=session_id)
     
     # Get speakers for this specific meeting
-    meeting_speakers = [s[0] for s in db.query(TranscriptSegment.speaker_username)
-                       .filter(TranscriptSegment.session_id == session_id)
-                       .distinct().all()]
+    speakers_result = await db.execute(
+        select(TranscriptSegment.speaker_username)
+        .where(TranscriptSegment.session_id == session_id)
+        .distinct()
+    )
+    meeting_speakers = speakers_result.scalars().all()
     
     # Convert segments to schemas - ADD from_attributes=True
     segments_out = [TranscriptSegmentOut.model_validate(segment, from_attributes=True) for segment in segments]
@@ -73,10 +80,10 @@ def get_meeting(meeting_id: str, user: User = Depends(get_current_user), db: Ses
 
 
 @router.get("/{meeting_id}/info", response_model=MeetingOutList)
-def get_meeting_info(
+async def get_meeting_info(
     meeting_id: str,
     user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     """
     Возвращает последнюю актуальную встречу (< 24 часов).
@@ -86,12 +93,13 @@ def get_meeting_info(
     now_utc = datetime.now(timezone.utc)
 
     # Берём самую свежую встречу для base_session_id (с учётом возможных суффиксов даты)
-    last_meeting = (
-        db.query(Meeting)
-        .filter(Meeting.unique_session_id.like(f"{base_session_id}%"))
+    result = await db.execute(
+        select(Meeting)
+        .where(Meeting.unique_session_id.like(f"{base_session_id}%"))
         .order_by(desc(Meeting.created_at))
-        .first()
+        .limit(1)
     )
+    last_meeting = result.scalar_one_or_none()
 
     if not last_meeting:
         raise HTTPException(status_code=404, detail="Meeting not found")
@@ -108,16 +116,16 @@ def get_meeting_info(
 @router.post("/{meeting_id}/segments", 
     response_model=TranscriptSegmentOut, 
     status_code=201,)
-def add_segment(
+async def add_segment(
     meeting_id: str,
     seg_in: TranscriptSegmentCreate,
     user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     
     # Проверяем, что встреча существует и принадлежит текущему пользователю
     meeting_service = MeetingService(db)
-    meeting = meeting_service.get_meeting_by_session_id(session_id=meeting_id, user_id=user.id)
+    meeting = await meeting_service.get_meeting_by_session_id(session_id=meeting_id, user_id=user.id)
     if not meeting:
         raise HTTPException(status_code=404, detail="Meeting not found")
     session_id = meeting.unique_session_id
@@ -133,8 +141,8 @@ def add_segment(
     )
     
     db.add(segment)
-    db.commit()
-    db.refresh(segment)
+    await db.commit()
+    await db.refresh(segment)
     return segment
 
 

@@ -27,9 +27,11 @@ def setup_paths():
 setup_paths()
 
 # Теперь можно импортировать модули
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
+import httpx
 
 # Загружаем .env файл
 load_dotenv()
@@ -37,10 +39,26 @@ load_dotenv()
 # Импортируем роутер после настройки всех путей
 from dapmeet.api import api_router as main_router
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: create shared HTTP client
+    app.state.http_client = httpx.AsyncClient(
+        timeout=httpx.Timeout(10.0),
+        limits=httpx.Limits(max_keepalive_connections=50, max_connections=100)
+    )
+    try:
+        yield
+    finally:
+        # Shutdown: close HTTP client
+        await app.state.http_client.aclose()
+
+
 app = FastAPI(
     title="Dapmeet API",
     description="API for Dapmeet meeting transcription service",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 app.add_middleware(
@@ -56,3 +74,9 @@ app.include_router(main_router)
 @app.get("/")
 async def root():
     return {"message": "Dapmeet API is running"}
+
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for Render monitoring"""
+    return {"status": "healthy", "timestamp": "2025-01-27T00:00:00Z"}

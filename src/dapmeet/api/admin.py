@@ -3,10 +3,10 @@ from datetime import datetime, date
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
-from sqlalchemy import text, and_, func
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import text, and_, func, select
 
-from dapmeet.core.deps import get_db
+from dapmeet.core.deps import get_async_db
 from dapmeet.services.admin_auth import (
     get_current_admin,
     verify_admin_credentials,
@@ -55,11 +55,11 @@ def admin_logout(_: Dict[str, Any] = Depends(get_current_admin)):
 
 
 @router.get("/dashboard/metrics")
-def dashboard_metrics(_: Dict[str, Any] = Depends(get_current_admin), db: Session = Depends(get_db)):
-    users_count = db.query(User).count()
-    meetings_count = db.query(Meeting).count()
-    segments_count = db.query(TranscriptSegment).count()
-    messages_count = db.query(ChatMessage).count()
+async def dashboard_metrics(_: Dict[str, Any] = Depends(get_current_admin), db: AsyncSession = Depends(get_async_db)):
+    users_count = await db.scalar(select(func.count(User.id)))
+    meetings_count = await db.scalar(select(func.count(Meeting.unique_session_id)))
+    segments_count = await db.scalar(select(func.count(TranscriptSegment.id)))
+    messages_count = await db.scalar(select(func.count(ChatMessage.id)))
     return {
         "users": users_count,
         "meetings": meetings_count,
@@ -69,9 +69,17 @@ def dashboard_metrics(_: Dict[str, Any] = Depends(get_current_admin), db: Sessio
 
 
 @router.get("/dashboard/activity-feed")
-def dashboard_activity(_: Dict[str, Any] = Depends(get_current_admin), db: Session = Depends(get_db)):
-    latest_meetings = db.query(Meeting).order_by(Meeting.created_at.desc()).limit(10).all()
-    latest_segments = db.query(TranscriptSegment).order_by(TranscriptSegment.created_at.desc()).limit(10).all()
+async def dashboard_activity(_: Dict[str, Any] = Depends(get_current_admin), db: AsyncSession = Depends(get_async_db)):
+    meetings_result = await db.execute(
+        select(Meeting).order_by(Meeting.created_at.desc()).limit(10)
+    )
+    latest_meetings = meetings_result.scalars().all()
+    
+    segments_result = await db.execute(
+        select(TranscriptSegment).order_by(TranscriptSegment.created_at.desc()).limit(10)
+    )
+    latest_segments = segments_result.scalars().all()
+    
     return {
         "recent_meetings": [
             {
@@ -126,36 +134,41 @@ def metrics_system_performance(_: Dict[str, Any] = Depends(get_current_admin)):
 # User Management
 # =====================
 
-def get_users_count(db: Session = Depends(get_db)):
-    return db.query(User).count()
+async def get_users_count(db: AsyncSession = Depends(get_async_db)):
+    return await db.scalar(select(func.count(User.id)))
 
 @router.get("/users")
-def list_users(
+async def list_users(
     search: Optional[str] = None,
     limit: int = Depends(get_users_count),
     page: int = 1,
     _: Dict[str, Any] = Depends(get_current_admin),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     # Validate parameters
     if page < 1:
         page = 1
     if limit < 1 or limit > 100:
         limit = 20
-    query = db.query(User)
+    
+    base_stmt = select(User)
     if search:
         # Search in both email and name fields
-        query = query.filter(
+        base_stmt = base_stmt.where(
             (User.email.ilike(f"%{search}%")) | 
             (User.name.ilike(f"%{search}%"))
         )
     
-    total = query.count()
+    total = await db.scalar(select(func.count()).select_from(base_stmt.subquery()))
     
     # Calculate offset based on page number
     offset = (page - 1) * limit
     
-    users = query.order_by(User.created_at.desc()).offset(offset).limit(limit).all()
+    users_result = await db.execute(
+        base_stmt.order_by(User.created_at.desc()).offset(offset).limit(limit)
+    )
+    users = users_result.scalars().all()
+    
     items = [
         {
             "id": u.id,
@@ -183,8 +196,9 @@ def list_users(
 
 
 @router.get("/users/{user_id}")
-def get_user(user_id: str, _: Dict[str, Any] = Depends(get_current_admin), db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.id == user_id).first()
+async def get_user(user_id: str, _: Dict[str, Any] = Depends(get_current_admin), db: AsyncSession = Depends(get_async_db)):
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return {
@@ -201,13 +215,14 @@ class AdminUserUpdate(BaseModel):
 
 
 @router.put("/users/{user_id}")
-def update_user(
+async def update_user(
     user_id: str,
     payload: AdminUserUpdate,
     _: Dict[str, Any] = Depends(get_current_admin),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
-    user = db.query(User).filter(User.id == user_id).first()
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     if payload.name is not None:
@@ -215,8 +230,8 @@ def update_user(
     if payload.email is not None:
         user.email = payload.email
     db.add(user)
-    db.commit()
-    db.refresh(user)
+    await db.commit()
+    await db.refresh(user)
     return {
         "id": user.id,
         "email": user.email,
@@ -226,14 +241,15 @@ def update_user(
 
 
 @router.get("/users/{user_id}/activity")
-def user_activity(user_id: str, _: Dict[str, Any] = Depends(get_current_admin), db: Session = Depends(get_db)):
-    recent_meetings = (
-        db.query(Meeting)
-        .filter(Meeting.user_id == user_id)
+async def user_activity(user_id: str, _: Dict[str, Any] = Depends(get_current_admin), db: AsyncSession = Depends(get_async_db)):
+    result = await db.execute(
+        select(Meeting)
+        .where(Meeting.user_id == user_id)
         .order_by(Meeting.created_at.desc())
         .limit(10)
-        .all()
     )
+    recent_meetings = result.scalars().all()
+    
     return {
         "recent_meetings": [
             {
@@ -253,23 +269,23 @@ def user_ai_usage(user_id: str, _: Dict[str, Any] = Depends(get_current_admin)):
 
 
 @router.get("/users/stats")
-def users_stats(_: Dict[str, Any] = Depends(get_current_admin), db: Session = Depends(get_db)):
-    total_users = db.query(User).count()
+async def users_stats(_: Dict[str, Any] = Depends(get_current_admin), db: AsyncSession = Depends(get_async_db)):
+    total_users = await db.scalar(select(func.count(User.id)))
     return {"total_users": total_users}
 
 
 @router.get("/users/meetings/stats")
-def all_users_meetings_stats(
+async def all_users_meetings_stats(
     search: Optional[str] = Query(None, description="Search by user email or name"),
     limit: int = Query(100, ge=1, le=500, description="Number of users to return"),
     page: int = Query(1, ge=1, description="Page number"),
     _: Dict[str, Any] = Depends(get_current_admin),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db)
 ):
     """Get meeting statistics for all users"""
     # Build base query with meeting count using subquery
     subquery = (
-        db.query(
+        select(
             Meeting.user_id,
             func.count(Meeting.unique_session_id).label('meeting_count')
         )
@@ -278,30 +294,34 @@ def all_users_meetings_stats(
     )
     
     # Join users with their meeting counts
-    query = (
-        db.query(
+    base_stmt = (
+        select(
             User.id,
             User.email,
             User.name,
             User.created_at,
             func.coalesce(subquery.c.meeting_count, 0).label('total_meetings')
         )
-        .outerjoin(subquery, User.id == subquery.c.user_id)
+        .select_from(User)
+        .join(subquery, User.id == subquery.c.user_id, isouter=True)
     )
     
     # Apply search filter
     if search:
-        query = query.filter(
+        base_stmt = base_stmt.where(
             (User.email.ilike(f"%{search}%")) | 
             (User.name.ilike(f"%{search}%"))
         )
     
     # Get total count for pagination
-    total = query.count()
+    total = await db.scalar(select(func.count()).select_from(base_stmt.subquery()))
     
     # Apply pagination and ordering
     offset = (page - 1) * limit
-    results = query.order_by(User.created_at.desc()).offset(offset).limit(limit).all()
+    exec_result = await db.execute(
+        base_stmt.order_by(User.created_at.desc()).offset(offset).limit(limit)
+    )
+    results = exec_result.all()
     
     # Calculate pagination metadata
     total_pages = (total + limit - 1) // limit
@@ -334,17 +354,18 @@ def all_users_meetings_stats(
 
 
 @router.get("/users/{user_id}/meetings/stats")
-def user_meetings_stats(
+async def user_meetings_stats(
     user_id: str,
     _: Dict[str, Any] = Depends(get_current_admin),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db)
 ):
     """Get total meetings count for a specific user"""
-    user = db.query(User).filter(User.id == user_id).first()
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    total_meetings = db.query(Meeting).filter(Meeting.user_id == user_id).count()
+    total_meetings = await db.scalar(select(func.count(Meeting.unique_session_id)).where(Meeting.user_id == user_id))
     
     return {
         "user_id": user_id,
@@ -355,38 +376,42 @@ def user_meetings_stats(
 
 
 @router.get("/users/{user_id}/meetings")
-def user_meetings_filtered(
+async def user_meetings_filtered(
     user_id: str,
     start_date: Optional[date] = Query(None, description="Start date (YYYY-MM-DD)"),
     end_date: Optional[date] = Query(None, description="End date (YYYY-MM-DD)"),
     limit: int = Query(50, ge=1, le=100, description="Number of meetings to return"),
     page: int = Query(1, ge=1, description="Page number"),
     _: Dict[str, Any] = Depends(get_current_admin),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db)
 ):
     """Filter meetings for one user by date or date interval"""
-    user = db.query(User).filter(User.id == user_id).first()
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
     # Build query
-    query = db.query(Meeting).filter(Meeting.user_id == user_id)
+    base_stmt = select(Meeting).where(Meeting.user_id == user_id)
     
     # Apply date filters
     if start_date:
         start_datetime = datetime.combine(start_date, datetime.min.time())
-        query = query.filter(Meeting.created_at >= start_datetime)
+        base_stmt = base_stmt.where(Meeting.created_at >= start_datetime)
     
     if end_date:
         end_datetime = datetime.combine(end_date, datetime.max.time())
-        query = query.filter(Meeting.created_at <= end_datetime)
+        base_stmt = base_stmt.where(Meeting.created_at <= end_datetime)
     
     # Get total count for pagination
-    total = query.count()
+    total = await db.scalar(select(func.count()).select_from(base_stmt.subquery()))
     
     # Apply pagination
     offset = (page - 1) * limit
-    meetings = query.order_by(Meeting.created_at.desc()).offset(offset).limit(limit).all()
+    exec_result = await db.execute(
+        base_stmt.order_by(Meeting.created_at.desc()).offset(offset).limit(limit)
+    )
+    meetings = exec_result.scalars().all()
     
     # Calculate pagination metadata
     total_pages = (total + limit - 1) // limit
@@ -422,41 +447,44 @@ def user_meetings_filtered(
 
 
 @router.get("/meetings/filtered")
-def all_meetings_filtered(
+async def all_meetings_filtered(
     start_date: Optional[date] = Query(None, description="Start date (YYYY-MM-DD)"),
     end_date: Optional[date] = Query(None, description="End date (YYYY-MM-DD)"),
     limit: int = Query(50, ge=1, le=100, description="Number of meetings to return"),
     page: int = Query(1, ge=1, description="Page number"),
     user_search: Optional[str] = Query(None, description="Search by user email or name"),
     _: Dict[str, Any] = Depends(get_current_admin),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db)
 ):
     """Filter all users' meetings by date or date interval with optional user search"""
     # Build query with JOIN to User table for search capability
-    query = db.query(Meeting).join(User, Meeting.user_id == User.id)
+    base_stmt = select(Meeting, User).join(User, Meeting.user_id == User.id)
     
     # Apply date filters
     if start_date:
         start_datetime = datetime.combine(start_date, datetime.min.time())
-        query = query.filter(Meeting.created_at >= start_datetime)
+        base_stmt = base_stmt.where(Meeting.created_at >= start_datetime)
     
     if end_date:
         end_datetime = datetime.combine(end_date, datetime.max.time())
-        query = query.filter(Meeting.created_at <= end_datetime)
+        base_stmt = base_stmt.where(Meeting.created_at <= end_datetime)
     
     # Apply user search filter
     if user_search:
-        query = query.filter(
+        base_stmt = base_stmt.where(
             (User.email.ilike(f"%{user_search}%")) | 
             (User.name.ilike(f"%{user_search}%"))
         )
     
     # Get total count for pagination
-    total = query.count()
+    total = await db.scalar(select(func.count()).select_from(base_stmt.subquery()))
     
     # Apply pagination and order
     offset = (page - 1) * limit
-    meetings = query.order_by(Meeting.created_at.desc()).offset(offset).limit(limit).all()
+    exec_result = await db.execute(
+        base_stmt.order_by(Meeting.created_at.desc()).offset(offset).limit(limit)
+    )
+    meeting_user_pairs = exec_result.all()
     
     # Calculate pagination metadata
     total_pages = (total + limit - 1) // limit
@@ -479,13 +507,13 @@ def all_meetings_filtered(
         },
         "meetings": [
             {
-                "meeting_id": m.meeting_id,
-                "user_id": m.user_id,
-                "user_email": m.user.email,
-                "user_name": m.user.name,
-                "created_at": m.created_at
+                "meeting_id": meeting.meeting_id,
+                "user_id": meeting.user_id,
+                "user_email": user.email,
+                "user_name": user.name,
+                "created_at": meeting.created_at
             }
-            for m in meetings
+            for meeting, user in meeting_user_pairs
         ]
     }
 
@@ -496,9 +524,9 @@ def all_meetings_filtered(
 
 
 @router.get("/meetings/stats")
-def meetings_stats(_: Dict[str, Any] = Depends(get_current_admin), db: Session = Depends(get_db)):
-    total_meetings = db.query(Meeting).count()
-    total_segments = db.query(TranscriptSegment).count()
+async def meetings_stats(_: Dict[str, Any] = Depends(get_current_admin), db: AsyncSession = Depends(get_async_db)):
+    total_meetings = await db.scalar(select(func.count(Meeting.unique_session_id)))
+    total_segments = await db.scalar(select(func.count(TranscriptSegment.id)))
     return {"total_meetings": total_meetings, "total_segments": total_segments}
 
 
@@ -562,9 +590,9 @@ def system_health(_: Dict[str, Any] = Depends(get_current_admin)):
 
 
 @router.get("/system/health/database")
-def system_health_db(_: Dict[str, Any] = Depends(get_current_admin), db: Session = Depends(get_db)):
+async def system_health_db(_: Dict[str, Any] = Depends(get_current_admin), db: AsyncSession = Depends(get_async_db)):
     # Simple ping by executing a lightweight query
-    db.execute(text("SELECT 1"))
+    await db.execute(text("SELECT 1"))
     return {"database": "ok"}
 
 

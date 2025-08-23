@@ -1,19 +1,18 @@
-from sqlalchemy.orm import Session, noload
-from sqlalchemy import func, select, desc
-from sqlalchemy.sql.expression import literal_column
+from sqlalchemy.orm import noload
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import func, select, desc, delete
 from dapmeet.models.meeting import Meeting
 from dapmeet.models.segment import TranscriptSegment
 from dapmeet.models.user import User
 from datetime import datetime, timedelta, timezone
-from sqlalchemy import desc
 from dapmeet.schemas.meetings import MeetingCreate, MeetingOutList
 
 
 class MeetingService:
-    def __init__(self, db: Session):
+    def __init__(self, db: AsyncSession):
         self.db = db
 
-    def get_or_create_meeting(self, meeting_data: MeetingCreate, user: User) -> Meeting:
+    async def get_or_create_meeting(self, meeting_data: MeetingCreate, user: User) -> Meeting:
         """
         Получает или создаёт встречу по уникальному ID сессии.
         Правила:
@@ -26,12 +25,13 @@ class MeetingService:
         now_utc = datetime.now(timezone.utc)
 
         # Ищем последнюю встречу по этому base_session_id (включая старые с суффиксом даты)
-        last_meeting = (
-            self.db.query(Meeting)
-            .filter(Meeting.unique_session_id.like(f"{base_session_id}%"))
+        result = await self.db.execute(
+            select(Meeting)
+            .where(Meeting.unique_session_id.like(f"{base_session_id}%"))
             .order_by(desc(Meeting.created_at))
-            .first()
+            .limit(1)
         )
+        last_meeting = result.scalar_one_or_none()
 
         if last_meeting:
             age = now_utc - last_meeting.created_at
@@ -50,8 +50,8 @@ class MeetingService:
                     title=meeting_data.title,
                 )
                 self.db.add(new_meeting)
-                self.db.commit()
-                self.db.refresh(new_meeting)
+                await self.db.commit()
+                await self.db.refresh(new_meeting)
                 return new_meeting
 
         # Встреч не было — создаём первую (без суффикса)
@@ -62,20 +62,21 @@ class MeetingService:
             title=meeting_data.title,
         )
         self.db.add(new_meeting)
-        self.db.commit()
-        self.db.refresh(new_meeting)
+        await self.db.commit()
+        await self.db.refresh(new_meeting)
         return new_meeting
-    def get_meeting_by_session_id(self, session_id: str, user_id: str) -> Meeting | None:
+    async def get_meeting_by_session_id(self, session_id: str, user_id: str) -> Meeting | None:
         """Получает одну встречу по ID сессии без связанных сегментов."""
         u_session_id = f"{session_id}-{user_id}"
-        return (
-            self.db.query(Meeting)
+        result = await self.db.execute(
+            select(Meeting)
             .options(noload(Meeting.segments))
-            .filter(Meeting.unique_session_id == u_session_id)
-            .first()
+            .where(Meeting.unique_session_id == u_session_id)
+            .limit(1)
         )
+        return result.scalar_one_or_none()
 
-    def get_latest_segments_for_session(self, session_id: str) -> list[TranscriptSegment]:
+    async def get_latest_segments_for_session(self, session_id: str) -> list[TranscriptSegment]:
         """
         Получает и обрабатывает сегменты транскрипции для указанной сессии,
         используя SQL-запрос для фильтрации и сортировки.
@@ -106,11 +107,12 @@ class MeetingService:
             .order_by(cte.c.min_timestamp, cte.c.timestamp, cte.c.version)
         )
         
-        result = self.db.execute(query).mappings().all()
-        return [TranscriptSegment(**row) for row in result]
+        exec_result = await self.db.execute(query)
+        rows = exec_result.mappings().all()
+        return [TranscriptSegment(**row) for row in rows]
 
     # In MeetingService
-    def get_meetings_with_speakers(self, user_id: int, session_id: str = None) -> list[MeetingOutList]:
+    async def get_meetings_with_speakers(self, user_id: int, session_id: str = None) -> list[MeetingOutList]:
         """
         Get meetings with speakers - can be filtered to a single meeting or get all user meetings
         
@@ -122,41 +124,38 @@ class MeetingService:
             List of MeetingOutList objects
         """
         # Base query with join and aggregation
-        query = (
-            self.db.query(
+        base_stmt = (
+            select(
                 Meeting.unique_session_id,
                 Meeting.meeting_id,
                 Meeting.user_id,
                 Meeting.title,
                 Meeting.created_at,
-                func.array_agg(
-                    func.distinct(TranscriptSegment.speaker_username)
-                ).label('speakers')
+                func.array_agg(func.distinct(TranscriptSegment.speaker_username)).label('speakers'),
             )
-            .outerjoin(
-                TranscriptSegment, 
-                Meeting.unique_session_id == TranscriptSegment.session_id
-            )
-            .filter(Meeting.user_id == user_id)
+            .select_from(Meeting)
+            .join(TranscriptSegment, Meeting.unique_session_id == TranscriptSegment.session_id, isouter=True)
+            .where(Meeting.user_id == user_id)
         )
         
         # Add session filter if specified
         if session_id:
-            query = query.filter(Meeting.unique_session_id == session_id)
+            base_stmt = base_stmt.where(Meeting.unique_session_id == session_id)
         
         # Group and order
-        query = (
-            query.group_by(
+        base_stmt = (
+            base_stmt.group_by(
                 Meeting.unique_session_id,
                 Meeting.meeting_id,
                 Meeting.user_id,
                 Meeting.title,
-                Meeting.created_at
+                Meeting.created_at,
             )
             .order_by(Meeting.created_at.desc())
         )
         
-        results = query.all()
+        exec_result = await self.db.execute(base_stmt)
+        results = exec_result.all()
         
         return [
             MeetingOutList(
@@ -165,7 +164,7 @@ class MeetingService:
                 user_id=row.user_id,
                 title=row.title,
                 created_at=row.created_at,
-                speakers=[s for s in (row.speakers or []) if s is not None]
+                speakers=[s for s in (row.speakers or []) if s is not None],
             )
             for row in results
         ]
