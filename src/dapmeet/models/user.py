@@ -16,5 +16,8 @@ class User(Base):
         "Meeting", back_populates="user",
         cascade="all, delete-orphan"
     )
-
     
+    prompts = relationship(
+        "Prompt", back_populates="user",
+        cascade="all, delete-orphan"
+    )

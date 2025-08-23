@@ -16,6 +16,7 @@ from dapmeet.models.user import User
 from dapmeet.models.meeting import Meeting
 from dapmeet.models.segment import TranscriptSegment
 from dapmeet.models.chat_message import ChatMessage
+from dapmeet.models.prompt import Prompt
 
 
 router = APIRouter()
@@ -60,11 +61,15 @@ async def dashboard_metrics(_: Dict[str, Any] = Depends(get_current_admin), db: 
     meetings_count = await db.scalar(select(func.count(Meeting.unique_session_id)))
     segments_count = await db.scalar(select(func.count(TranscriptSegment.id)))
     messages_count = await db.scalar(select(func.count(ChatMessage.id)))
+    admin_prompts_count = await db.scalar(select(func.count(Prompt.id)).where(Prompt.prompt_type == "admin"))
+    user_prompts_count = await db.scalar(select(func.count(Prompt.id)).where(Prompt.prompt_type == "user"))
     return {
         "users": users_count,
         "meetings": meetings_count,
         "segments": segments_count,
         "chat_messages": messages_count,
+        "admin_prompts": admin_prompts_count,
+        "user_prompts": user_prompts_count,
     }
 
 
