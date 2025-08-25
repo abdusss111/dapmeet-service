@@ -11,6 +11,8 @@ from dapmeet.services.meetings import MeetingService
 from dapmeet.schemas.meetings import MeetingCreate, MeetingOut, MeetingPatch, MeetingOutList
 from dapmeet.schemas.segment import TranscriptSegmentCreate, TranscriptSegmentOut
 from datetime import datetime, timezone, timedelta
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 router = APIRouter()
 
 @router.get("/", response_model=list[MeetingOutList])
@@ -23,13 +25,22 @@ async def get_meetings(
     
 @router.post("/", response_model=MeetingOut)
 async def create_or_get_meeting(
-    data: MeetingCreate, 
-    db: AsyncSession = Depends(get_async_db), 
-    user: User = Depends(get_current_user)
+    data: MeetingCreate,
+    db: AsyncSession = Depends(get_async_db),
+    user: User = Depends(get_current_user),
 ):
     meeting_service = MeetingService(db)
     meeting = await meeting_service.get_or_create_meeting(meeting_data=data, user=user)
-    return meeting
+
+    # Re-load with segments eagerly fetched so Pydantic won't trigger IO later
+    stmt = (
+        select(Meeting)
+        .options(selectinload(Meeting.segments))  # <- key line
+        .where(Meeting.unique_session_id == meeting.unique_session_id)
+    )
+    result = await db.execute(stmt)
+    meeting_loaded = result.scalar_one()
+    return meeting_loaded
 
 
 @router.get("/{meeting_id}", response_model=MeetingOut)
